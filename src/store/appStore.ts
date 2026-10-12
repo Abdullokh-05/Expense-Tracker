@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { AppSettings, AppLanguage, AppTheme } from '@/types'
-import { GUEST_USER_ID } from '@/lib/constants'
+import { GUEST_USER_ID, SETTINGS_STORAGE_KEY } from '@/lib/constants'
 import i18n from '@/lib/i18n'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -65,8 +65,13 @@ export const useAppStore = create<AppStore>()(
       setOnline: (isOnline) => set({ isOnline }),
     }),
     {
-      name: 'xarajat-app-settings',
+      name: SETTINGS_STORAGE_KEY,
       partialize: (state) => ({ settings: state.settings }),
     }
   )
 )
+
+// The one source of truth for whose data the other stores read and write
+export function getCurrentUserId(): string {
+  return useAppStore.getState().settings.userId
+}

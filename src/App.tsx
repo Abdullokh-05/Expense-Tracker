@@ -9,7 +9,11 @@ import { ReportsPage } from '@/pages/Reports/ReportsPage'
 import { SettingsPage } from '@/pages/Settings/SettingsPage'
 import { BudgetsPage } from '@/pages/Budgets/BudgetsPage'
 import { useAppStore } from '@/store/appStore'
+import { useTransactionStore } from '@/store/transactionStore'
+import { useRecurringStore } from '@/store/recurringStore'
+import { reloadAllData } from '@/store/reloadAll'
 import { processRecurringTransactions } from '@/services/recurringProcessor'
+import { fetchExchangeRates } from '@/services/currencyApi'
 
 export const App: React.FC = () => {
   const { settings, setOnline } = useAppStore()
@@ -29,17 +33,28 @@ export const App: React.FC = () => {
     }
   }, [setOnline])
 
-  // Run recurring transaction checker on startup
+  // Load the user's data once for every page, then run the recurring transaction checker
   useEffect(() => {
-    if (settings.onboardingCompleted) {
-      processRecurringTransactions(settings.userId)
-        .then((count) => {
-          if (count > 0) {
-            console.log(`Processed ${count} recurring transactions.`)
-          }
-        })
-        .catch((err) => console.error(err))
+    if (!settings.onboardingCompleted) return
+
+    const start = async () => {
+      await reloadAllData()
+
+      const { baseCurrency } = useAppStore.getState().settings
+      // Keep rates cached so foreign-currency entries still convert while offline
+      fetchExchangeRates().catch((err) => console.error(err))
+
+      const count = await processRecurringTransactions(settings.userId, baseCurrency)
+      if (count > 0) {
+        console.log(`Processed ${count} recurring transactions.`)
+        // Pick up the new transactions and the advanced next-run dates
+        await Promise.all([
+          useTransactionStore.getState().loadTransactions(),
+          useRecurringStore.getState().loadRecurringTransactions(),
+        ])
+      }
     }
+    start().catch((err) => console.error(err))
   }, [settings.onboardingCompleted, settings.userId])
 
   const onboardingCompleted = settings.onboardingCompleted

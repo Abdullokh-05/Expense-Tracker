@@ -6,32 +6,28 @@ import {
   updateRecurringTransaction,
   deleteRecurringTransaction,
 } from '@/db/operations'
-import { GUEST_USER_ID } from '@/lib/constants'
+import { getCurrentUserId } from '@/store/appStore'
+import { advanceByFrequency, todayDate } from '@/lib/utils'
 
 interface RecurringStore {
   recurringTransactions: RecurringTransaction[]
   isLoading: boolean
-  userId: string
   loadRecurringTransactions: () => Promise<void>
   addRecurringTransaction: (
     data: Omit<RecurringTransaction, 'id' | 'createdAt' | 'updatedAt' | 'synced'>
   ) => Promise<RecurringTransaction>
   toggleRecurringTransactionActive: (id: string, isActive: boolean) => Promise<void>
   removeRecurringTransaction: (id: string) => Promise<void>
-  setUserId: (id: string) => void
 }
 
 export const useRecurringStore = create<RecurringStore>((set, get) => ({
   recurringTransactions: [],
   isLoading: false,
-  userId: GUEST_USER_ID,
-
-  setUserId: (userId) => set({ userId }),
 
   loadRecurringTransactions: async () => {
     set({ isLoading: true })
     try {
-      const recurringTransactions = await getRecurringTransactions(get().userId)
+      const recurringTransactions = await getRecurringTransactions(getCurrentUserId())
       set({ recurringTransactions })
     } finally {
       set({ isLoading: false })
@@ -47,10 +43,20 @@ export const useRecurringStore = create<RecurringStore>((set, get) => ({
   },
 
   toggleRecurringTransactionActive: async (id, isActive) => {
-    await updateRecurringTransaction(id, { isActive })
+    const patch: Partial<RecurringTransaction> = { isActive }
+    const current = get().recurringTransactions.find((rt) => rt.id === id)
+    // Resuming skips the occurrences that fell inside the pause instead of back-filling them
+    if (isActive && current) {
+      const today = todayDate()
+      let nextRunDate = current.nextRunDate
+      while (nextRunDate < today) nextRunDate = advanceByFrequency(nextRunDate, current.frequency)
+      patch.nextRunDate = nextRunDate
+    }
+
+    await updateRecurringTransaction(id, patch)
     set((state) => ({
       recurringTransactions: state.recurringTransactions.map((rt) =>
-        rt.id === id ? { ...rt, isActive, updatedAt: new Date().toISOString() } : rt
+        rt.id === id ? { ...rt, ...patch, updatedAt: new Date().toISOString() } : rt
       ),
     }))
   },

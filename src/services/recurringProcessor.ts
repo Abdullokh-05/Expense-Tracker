@@ -1,8 +1,25 @@
 import { db } from '@/db/schema'
-import type { Transaction } from '@/types'
-import { generateId, nowISO, todayDate } from '@/lib/utils'
+import type { SyncQueueItem, Transaction } from '@/types'
+import { advanceByFrequency, generateId, nowISO, roundMoney, todayDate } from '@/lib/utils'
+import { getConversionRate } from '@/services/currencyApi'
 
-export async function processRecurringTransactions(userId = 'guest'): Promise<number> {
+// Upper bound on occurrences created per recurring item in one run (the rest follow next start)
+const MAX_CATCH_UP = 60
+
+let running: Promise<number> | null = null
+
+// Creates the transactions that recurring items owe up to today. Calls are serialised so two
+// callers (e.g. React StrictMode running effects twice) can't both create the same occurrence.
+export function processRecurringTransactions(userId = 'guest', baseCurrency: string): Promise<number> {
+  if (!running) {
+    running = run(userId, baseCurrency).finally(() => {
+      running = null
+    })
+  }
+  return running
+}
+
+async function run(userId: string, baseCurrency: string): Promise<number> {
   const today = todayDate()
   const activeRTs = await db.recurringTransactions
     .where('userId')
@@ -13,88 +30,74 @@ export async function processRecurringTransactions(userId = 'guest'): Promise<nu
   if (activeRTs.length === 0) return 0
 
   let processedCount = 0
-  const now = nowISO()
 
   for (const rt of activeRTs) {
-    // 1. Create transaction (confirmed or pending)
-    const txnStatus = rt.autoCreate ? 'confirmed' : 'pending'
-    const newTxn: Transaction = {
-      id: generateId(),
-      userId: rt.userId,
-      type: rt.type,
-      status: txnStatus,
-      amount: rt.amount,
-      currency: rt.currency,
-      // For base conversion, we fetch the base currency of settings
-      amountInBaseCurrency: rt.amount, // stub base currency conversion or we resolve settings base
-      exchangeRate: 1,
-      categoryId: rt.categoryId,
-      date: rt.nextRunDate, // created on the next run date
-      note: rt.note,
-      noteOriginal: rt.note,
-      noteLanguage: null,
-      translationConfidence: null,
-      paymentMethod: null,
-      recurringTransactionId: rt.id,
-      createdAt: now,
-      updatedAt: now,
+    // Without a rate (offline, never fetched) leave the item due and retry on the next start
+    // rather than record a foreign-currency amount as if it were the base currency.
+    const rate = await getConversionRate(rt.currency, baseCurrency)
+    if (rate === null) continue
+
+    const now = nowISO()
+    const created: Transaction[] = []
+    let nextRunDate = rt.nextRunDate
+
+    // 1. One transaction (confirmed or pending) per occurrence missed while the app was closed
+    while (nextRunDate <= today && created.length < MAX_CATCH_UP) {
+      created.push({
+        id: generateId(),
+        userId: rt.userId,
+        type: rt.type,
+        status: rt.autoCreate ? 'confirmed' : 'pending',
+        amount: rt.amount,
+        currency: rt.currency,
+        amountInBaseCurrency: roundMoney(rt.amount * rate, baseCurrency),
+        exchangeRate: rate,
+        categoryId: rt.categoryId,
+        date: nextRunDate,
+        note: rt.note,
+        noteOriginal: rt.note,
+        noteLanguage: null,
+        translationConfidence: null,
+        paymentMethod: null,
+        recurringTransactionId: rt.id,
+        createdAt: now,
+        updatedAt: now,
+        synced: false,
+      })
+      // 2. Calculate next run date based on frequency
+      nextRunDate = advanceByFrequency(nextRunDate, rt.frequency)
     }
 
-    // Resolve base currency exchange rate if we can access settings
-    const settings = await db.settings.get(userId)
-    if (settings && settings.baseCurrency !== rt.currency) {
-      const cachedRates = await db.exchangeRates.get(settings.baseCurrency)
-      if (cachedRates && cachedRates.rates[rt.currency]) {
-        const rate = cachedRates.rates[rt.currency]
-        newTxn.amountInBaseCurrency = rt.amount / rate
-        newTxn.exchangeRate = 1 / rate
-      }
-    }
-
-    await db.transactions.add(newTxn)
-    
     // Add to sync queue for dual-write offline sync
-    const syncItem = {
-      id: generateId(),
-      table: 'transactions' as const,
-      operation: 'create' as const,
-      recordId: newTxn.id,
-      payload: newTxn,
-      createdAt: now,
-      retries: 0,
-    }
-    await db.syncQueue.add(syncItem)
+    const syncItems: SyncQueueItem[] = [
+      ...created.map((txn) => ({
+        id: generateId(),
+        table: 'transactions' as const,
+        operation: 'create' as const,
+        recordId: txn.id,
+        payload: txn,
+        createdAt: now,
+        retries: 0,
+      })),
+      {
+        id: generateId(),
+        table: 'recurring_transactions' as const,
+        operation: 'update' as const,
+        recordId: rt.id,
+        payload: { ...rt, nextRunDate, updatedAt: now },
+        createdAt: now,
+        retries: 0,
+      },
+    ]
 
-    // 2. Calculate next run date based on frequency
-    const nextDate = new Date(rt.nextRunDate + 'T00:00:00')
-    if (rt.frequency === 'weekly') {
-      nextDate.setDate(nextDate.getDate() + 7)
-    } else if (rt.frequency === 'monthly') {
-      nextDate.setMonth(nextDate.getMonth() + 1)
-    } else if (rt.frequency === 'yearly') {
-      nextDate.setFullYear(nextDate.getFullYear() + 1)
-    }
-
-    const nextRunDateStr = nextDate.toISOString().split('T')[0]
-    
-    // Update next run date in DB
-    await db.recurringTransactions.update(rt.id, {
-      nextRunDate: nextRunDateStr,
-      updatedAt: now,
+    // All or nothing, so a crash can't leave transactions created but the date not advanced
+    await db.transaction('rw', db.transactions, db.recurringTransactions, db.syncQueue, async () => {
+      await db.transactions.bulkAdd(created)
+      await db.recurringTransactions.update(rt.id, { nextRunDate, updatedAt: now })
+      await db.syncQueue.bulkAdd(syncItems)
     })
 
-    const syncRTItem = {
-      id: generateId(),
-      table: 'recurring_transactions' as const,
-      operation: 'update' as const,
-      recordId: rt.id,
-      payload: { ...rt, nextRunDate: nextRunDateStr, updatedAt: now },
-      createdAt: now,
-      retries: 0,
-    }
-    await db.syncQueue.add(syncRTItem)
-
-    processedCount++
+    processedCount += created.length
   }
 
   return processedCount

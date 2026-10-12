@@ -17,7 +17,7 @@ export const BottomNav: React.FC = () => {
   return (
     <nav
       className="bottom-nav"
-      aria-label="Основная навигация"
+      aria-label={t('nav.mainLabel')}
     >
       <div className="flex items-stretch w-full">
         {NAV_ITEMS.map(({ to, icon: Icon, labelKey, id }) => (

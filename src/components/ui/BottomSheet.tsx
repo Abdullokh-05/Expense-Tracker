@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface BottomSheetProps {
   isOpen: boolean
@@ -16,6 +17,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   children,
   className = '',
 }) => {
+  const { t } = useTranslation()
   const sheetRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -82,7 +84,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
               onClick={onClose}
               className="p-2 rounded-xl transition-colors"
               style={{ color: 'var(--color-text-muted)' }}
-              aria-label="Закрыть"
+              aria-label={t('common.close')}
             >
               <X size={18} />
             </button>
@@ -103,6 +105,8 @@ interface ModalProps {
 }
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+  const { t } = useTranslation()
+
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden'
     else document.body.style.overflow = ''
@@ -112,16 +116,18 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div
         className="bottom-sheet-backdrop absolute inset-0"
         onClick={onClose}
         aria-hidden="true"
       />
+      {/* z-index above the backdrop, which is positioned at z-50 */}
       <div
         role="dialog"
         aria-modal="true"
-        className="relative w-full max-w-sm animate-scale-in"
+        aria-label={title}
+        className="relative z-[51] w-full max-w-sm animate-scale-in"
         style={{
           background: 'var(--color-surface)',
           borderRadius: '20px',
@@ -144,7 +150,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
               onClick={onClose}
               className="p-1.5 rounded-lg transition-colors"
               style={{ color: 'var(--color-text-muted)' }}
-              aria-label="Закрыть"
+              aria-label={t('common.close')}
             >
               <X size={16} />
             </button>
@@ -173,10 +179,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   title,
   description,
-  confirmLabel = 'Подтвердить',
-  cancelLabel = 'Отмена',
+  confirmLabel,
+  cancelLabel,
   danger = false,
 }) => {
+  const { t } = useTranslation()
+
   if (!isOpen) return null
 
   return (
@@ -208,15 +216,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               border: '1px solid var(--color-border)',
             }}
           >
-            {cancelLabel}
+            {cancelLabel ?? t('common.cancel')}
           </button>
           <button
             onClick={() => { onConfirm(); onClose() }}
-            className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors ${
-              danger ? 'bg-red-500 hover:bg-red-600' : 'bg-[var(--color-accent)] hover:opacity-90'
+            className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              danger ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:opacity-90'
             }`}
           >
-            {confirmLabel}
+            {confirmLabel ?? t('common.confirm')}
           </button>
         </div>
       </div>

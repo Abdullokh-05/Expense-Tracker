@@ -89,8 +89,9 @@ export async function getTransactions(userId = 'guest', filters?: {
   to?: string
   status?: 'confirmed' | 'pending' | 'skipped'
 }): Promise<Transaction[]> {
-  let col = db.transactions.where('userId').equals(userId)
-  let results = await col.reverse().sortBy('date')
+  let results = await db.transactions.where('userId').equals(userId).toArray()
+  // Newest day first; within a day, the most recently added first
+  results.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
 
   if (filters?.categoryId) results = results.filter(t => t.categoryId === filters.categoryId)
   if (filters?.type) results = results.filter(t => t.type === filters.type)
@@ -194,6 +195,8 @@ export async function createRecurringTransaction(
 
 export async function updateRecurringTransaction(id: string, patch: Partial<RecurringTransaction>): Promise<void> {
   await db.recurringTransactions.update(id, { ...patch, updatedAt: nowISO(), synced: false })
+  const full = await db.recurringTransactions.get(id)
+  if (full) await addToSyncQueue('recurring_transactions', 'update', id, full)
 }
 
 export async function deleteRecurringTransaction(id: string): Promise<void> {

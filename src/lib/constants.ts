@@ -67,3 +67,6 @@ export const AI_LIMITS = {
 // App name
 export const APP_NAME = 'Xarajat'
 export const GUEST_USER_ID = 'guest'
+
+// localStorage key of the persisted app settings (read before React starts for theme and language)
+export const SETTINGS_STORAGE_KEY = 'xarajat-app-settings'

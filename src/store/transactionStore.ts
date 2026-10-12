@@ -6,47 +6,58 @@ import {
   updateTransaction,
   deleteTransaction,
 } from '@/db/operations'
-import { GUEST_USER_ID } from '@/lib/constants'
+import { getCurrentUserId } from '@/store/appStore'
 
 interface TransactionStore {
+  // Every transaction of the current user, newest first. Pages filter this in memory,
+  // so they all see the same data no matter which one loaded it.
   transactions: Transaction[]
   isLoading: boolean
-  userId: string
-  loadTransactions: (filters?: Parameters<typeof getTransactions>[1]) => Promise<void>
+  loadTransactions: () => Promise<void>
   addTransaction: (data: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt' | 'synced'>) => Promise<Transaction>
   editTransaction: (id: string, patch: Partial<Transaction>) => Promise<void>
   removeTransaction: (id: string) => Promise<void>
-  setUserId: (id: string) => void
 }
 
-export const useTransactionStore = create<TransactionStore>((set, get) => ({
+function sortNewestFirst(transactions: Transaction[]): Transaction[] {
+  return [...transactions].sort(
+    (a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)
+  )
+}
+
+let loadSequence = 0
+
+export const useTransactionStore = create<TransactionStore>((set) => ({
   transactions: [],
   isLoading: false,
-  userId: GUEST_USER_ID,
 
-  setUserId: (userId) => set({ userId }),
-
-  loadTransactions: async (filters) => {
+  loadTransactions: async () => {
+    const sequence = ++loadSequence
     set({ isLoading: true })
     try {
-      const transactions = await getTransactions(get().userId, filters)
-      set({ transactions })
+      const transactions = await getTransactions(getCurrentUserId())
+      // A newer load started while this one was reading; let that one win
+      if (sequence === loadSequence) set({ transactions })
     } finally {
-      set({ isLoading: false })
+      if (sequence === loadSequence) set({ isLoading: false })
     }
   },
 
   addTransaction: async (data) => {
     const transaction = await createTransaction(data)
-    set((state) => ({ transactions: [transaction, ...state.transactions] }))
+    set((state) => ({
+      transactions: sortNewestFirst([transaction, ...state.transactions.filter((t) => t.id !== transaction.id)]),
+    }))
     return transaction
   },
 
   editTransaction: async (id, patch) => {
     await updateTransaction(id, patch)
     set((state) => ({
-      transactions: state.transactions.map((t) =>
-        t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t
+      transactions: sortNewestFirst(
+        state.transactions.map((t) =>
+          t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t
+        )
       ),
     }))
   },

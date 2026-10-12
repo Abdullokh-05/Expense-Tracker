@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import { CheckCircle, AlertCircle, Info, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 export type ToastType = 'success' | 'error' | 'info'
 
@@ -32,6 +33,7 @@ export const toast = {
 }
 
 export const ToastContainer: React.FC = () => {
+  const { t } = useTranslation()
   const [items, setItems] = React.useState<Toast[]>([])
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export const ToastContainer: React.FC = () => {
             }}
             className="transition-opacity hover:opacity-70"
             style={{ color: 'var(--color-text-muted)' }}
-            aria-label="Закрыть"
+            aria-label={t('common.close')}
           >
             <X size={14} />
           </button>

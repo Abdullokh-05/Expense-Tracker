@@ -1,29 +1,37 @@
 import { db } from '@/db/schema'
+import { addToSyncQueue } from '@/db/operations'
 import type { ExchangeRate } from '@/types'
-import { nowISO } from '@/lib/utils'
+import { nowISO, roundMoney } from '@/lib/utils'
 
 const API_URL = 'https://open.er-api.com/v6/latest'
+const MAX_AGE_MS = 1000 * 60 * 60 * 24 // 24 hours
 
-export async function fetchExchangeRates(baseCurrency: string): Promise<Record<string, number>> {
-  try {
-    // 1. Check if we have cached rates in IndexedDB
-    const cached = await db.exchangeRates.get(baseCurrency)
-    if (cached) {
-      const ageMs = Date.now() - new Date(cached.lastUpdated).getTime()
-      const isExpired = ageMs > 1000 * 60 * 60 * 24 // older than 24 hours
-      if (!isExpired) {
-        console.log(`Using cached currency rates for ${baseCurrency}`)
-        return cached.rates
-      }
-    }
+// Every conversion goes through one USD-based table. The API rounds rates to six decimals,
+// so a table based on a low-value currency is useless (1 UZS = 0.000084 USD is off by ~0.4%),
+// while USD-based figures keep full precision for every currency. One table also means one
+// cached copy covers every pair offline.
+const PIVOT_CURRENCY = 'USD'
 
-    // 2. Fetch fresh rates if online
-    if (navigator.onLine) {
-      console.log(`Fetching fresh exchange rates for ${baseCurrency} from API`)
+// USD-based rates: 1 USD = rates[X] units of X.
+// Fresh from the API when possible, otherwise the last cached copy however old.
+// Returns null when there are no rates at all — callers must not guess one.
+export async function fetchExchangeRates(): Promise<Record<string, number> | null> {
+  const baseCurrency = PIVOT_CURRENCY
+
+  // 1. Check if we have cached rates in IndexedDB
+  const cached = await db.exchangeRates.get(baseCurrency)
+  if (cached) {
+    const ageMs = Date.now() - new Date(cached.lastUpdated).getTime()
+    if (ageMs <= MAX_AGE_MS) return cached.rates
+  }
+
+  // 2. Fetch fresh rates if online
+  if (navigator.onLine) {
+    try {
       const res = await fetch(`${API_URL}/${baseCurrency}`)
       if (!res.ok) throw new Error('API request failed')
       const data = await res.json()
-      
+
       if (data.rates) {
         const ratesRecord: ExchangeRate = {
           baseCurrency,
@@ -34,55 +42,65 @@ export async function fetchExchangeRates(baseCurrency: string): Promise<Record<s
         await db.exchangeRates.put(ratesRecord)
         return data.rates
       }
-    }
-  } catch (error) {
-    console.error('Error fetching exchange rates:', error)
-  }
-
-  // Fallback to existing cache if offline/API fails, or hardcoded stubs
-  const cachedFallback = await db.exchangeRates.get(baseCurrency)
-  if (cachedFallback) {
-    return cachedFallback.rates
-  }
-
-  // hardcoded fallback stubs
-  const defaultStubs: Record<string, number> = {
-    UZS: 1,
-    USD: 1 / 12650,
-    EUR: 1 / 13800,
-    RUB: 1 / 140,
-  }
-
-  if (baseCurrency === 'UZS') {
-    return {
-      UZS: 1,
-      USD: 12650,
-      EUR: 13800,
-      RUB: 140,
+    } catch (error) {
+      console.error('Error fetching exchange rates:', error)
     }
   }
 
-  return defaultStubs
+  // 3. Offline or the API failed: a stale cache is still better than nothing
+  return cached?.rates ?? null
 }
 
-export async function convertAmount(
-  amount: number,
-  fromCurrency: string,
-  toCurrency: string
-): Promise<{ amount: number; rate: number }> {
-  if (fromCurrency === toCurrency) {
-    return { amount, rate: 1 }
-  }
+// How many units of `toCurrency` one unit of `fromCurrency` is worth, or null if unknown
+export async function getConversionRate(fromCurrency: string, toCurrency: string): Promise<number | null> {
+  if (fromCurrency === toCurrency) return 1
 
-  const rates = await fetchExchangeRates(toCurrency)
-  const rate = rates[fromCurrency]
-  
-  if (rate) {
-    // API returns rates as 1 toCurrency = X fromCurrency
-    // To convert fromCurrency -> toCurrency: amount / rate
-    const converted = amount / rate
-    return { amount: converted, rate: 1 / rate }
-  }
+  const rates = await fetchExchangeRates()
+  const from = rates?.[fromCurrency]
+  const to = rates?.[toCurrency]
+  // 1 USD = `from` units of fromCurrency = `to` units of toCurrency
+  return from && to ? to / from : null
+}
 
-  return { amount, rate: 1 }
+// Re-express every stored base-currency amount (transactions and budget limits) in a new base
+// currency. Throws without touching anything if the rate isn't available.
+export async function convertBaseCurrency(userId: string, oldBase: string, newBase: string): Promise<void> {
+  if (oldBase === newBase) return
+
+  const transactions = await db.transactions.where('userId').equals(userId).toArray()
+  const budgets = await db.budgets.where('userId').equals(userId).toArray()
+  if (transactions.length === 0 && budgets.length === 0) return
+
+  const oldToNew = await getConversionRate(oldBase, newBase)
+  if (oldToNew === null) throw new Error('Exchange rate unavailable')
+
+  const now = nowISO()
+
+  const convertedTransactions = transactions.map((txn) => {
+    // Something paid in the new base currency gets its exact amount back; everything else
+    // keeps the value it was recorded at, carried over at today's rate.
+    const amountInBaseCurrency =
+      txn.currency === newBase ? txn.amount : roundMoney(txn.amountInBaseCurrency * oldToNew, newBase)
+    return {
+      ...txn,
+      amountInBaseCurrency,
+      exchangeRate: txn.amount > 0 ? amountInBaseCurrency / txn.amount : 1,
+      updatedAt: now,
+      synced: false,
+    }
+  })
+
+  const convertedBudgets = budgets.map((budget) => ({
+    ...budget,
+    monthlyLimit: roundMoney(budget.monthlyLimit * oldToNew, newBase),
+    updatedAt: now,
+    synced: false,
+  }))
+
+  await db.transaction('rw', db.transactions, db.budgets, db.syncQueue, async () => {
+    await db.transactions.bulkPut(convertedTransactions)
+    await db.budgets.bulkPut(convertedBudgets)
+    for (const txn of convertedTransactions) await addToSyncQueue('transactions', 'update', txn.id, txn)
+    for (const budget of convertedBudgets) await addToSyncQueue('budgets', 'update', budget.id, budget)
+  })
 }

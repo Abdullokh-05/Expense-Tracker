@@ -7,32 +7,28 @@ import {
   archiveCategory,
   seedDefaultCategories,
 } from '@/db/operations'
-import { GUEST_USER_ID } from '@/lib/constants'
+import { sortCategories } from '@/lib/categories'
+import { getCurrentUserId } from '@/store/appStore'
 
 interface CategoryStore {
   categories: Category[]
   isLoading: boolean
-  userId: string
   loadCategories: () => Promise<void>
   addCategory: (data: Omit<Category, 'id' | 'createdAt' | 'updatedAt' | 'synced'>) => Promise<Category>
   editCategory: (id: string, patch: Partial<Category>) => Promise<void>
   archiveCategoryById: (id: string) => Promise<void>
   seedDefaults: () => Promise<void>
-  setUserId: (id: string) => void
   getActiveCategories: () => Category[]
 }
 
 export const useCategoryStore = create<CategoryStore>((set, get) => ({
   categories: [],
   isLoading: false,
-  userId: GUEST_USER_ID,
-
-  setUserId: (userId) => set({ userId }),
 
   loadCategories: async () => {
     set({ isLoading: true })
     try {
-      const categories = await getCategories(get().userId)
+      const categories = sortCategories(await getCategories(getCurrentUserId()))
       set({ categories })
     } finally {
       set({ isLoading: false })
@@ -41,7 +37,7 @@ export const useCategoryStore = create<CategoryStore>((set, get) => ({
 
   addCategory: async (data) => {
     const category = await createCategory(data)
-    set((state) => ({ categories: [...state.categories, category] }))
+    set((state) => ({ categories: sortCategories([...state.categories, category]) }))
     return category
   },
 
@@ -64,7 +60,7 @@ export const useCategoryStore = create<CategoryStore>((set, get) => ({
   },
 
   seedDefaults: async () => {
-    await seedDefaultCategories(get().userId)
+    await seedDefaultCategories(getCurrentUserId())
     await get().loadCategories()
   },
 

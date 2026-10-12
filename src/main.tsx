@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
 import '@/lib/i18n'
+import { applyTheme } from '@/lib/theme'
+import { SETTINGS_STORAGE_KEY } from '@/lib/constants'
 
 // Register PWA service worker automatically
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
@@ -20,20 +22,11 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 
 // Apply theme class on startup
 const initTheme = () => {
-  const store = localStorage.getItem('xarajat-app-settings')
+  const store = localStorage.getItem(SETTINGS_STORAGE_KEY)
   if (store) {
     try {
       const parsed = JSON.parse(store)
-      const themeValue = parsed.state?.settings?.theme
-      const isDark =
-        themeValue === 'dark' ||
-        (themeValue === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      
-      if (isDark) {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
+      applyTheme(parsed.state?.settings?.theme)
     } catch (e) {
       console.error(e)
     }

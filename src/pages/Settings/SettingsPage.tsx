@@ -1,16 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/store/appStore'
 import { useCategoryStore } from '@/store/categoryStore'
 import { useRecurringStore } from '@/store/recurringStore'
 import { useTransactionStore } from '@/store/transactionStore'
-import { SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES } from '@/lib/constants'
+import { reloadAllData } from '@/store/reloadAll'
+import { CATEGORY_COLORS, SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES } from '@/lib/constants'
+import { getCategoryName, pickCategoryColor } from '@/lib/categories'
+import { applyTheme } from '@/lib/theme'
+import { formatAmount, formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { BottomSheet, ConfirmDialog, Modal } from '@/components/ui/BottomSheet'
 import { db } from '@/db/schema'
+import { seedDefaultCategories } from '@/db/operations'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { processSyncQueue, migrateGuestData, exportTransactionsToCSV } from '@/services/syncService'
+import { processSyncQueue, migrateGuestData } from '@/services/syncService'
+import { exportBackup, exportTransactionsToCSV, restoreBackup } from '@/services/backupService'
+import { convertBaseCurrency } from '@/services/currencyApi'
 import {
   Smartphone,
   FolderOpen,
@@ -25,28 +32,42 @@ import {
   Repeat,
   Clock,
   Download,
+  Upload,
   Cloud,
   CloudOff,
   User,
   LogOut,
-  RefreshCw
+  RefreshCw,
+  Pause,
+  Play,
+  Check,
+  X,
 } from 'lucide-react'
 import { toast } from '@/components/ui/Toast'
 import type { AppLanguage, AppTheme } from '@/types'
 
+const CATEGORY_ICON_CHOICES = ['🍕', '🚗', '🏠', '🎮', '💊', '📱', '✈️', '🛍️', '📚', '🎵', '🐾', '💡']
+
 export const SettingsPage: React.FC = () => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { settings, setCurrency, setLanguage, setTheme, setAIEnabled, setUserId } = useAppStore()
-  const { categories, loadCategories, addCategory, archiveCategoryById } = useCategoryStore()
+  const { categories, addCategory, archiveCategoryById } = useCategoryStore()
   const {
     recurringTransactions,
-    loadRecurringTransactions,
+    toggleRecurringTransactionActive,
+    removeRecurringTransaction,
   } = useRecurringStore()
-  const { transactions, loadTransactions } = useTransactionStore()
+  const { transactions, editTransaction } = useTransactionStore()
 
   // Modal controls
   const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showAddCategory, setShowAddCategory] = useState(false)
+  const [showShortcutInfo, setShowShortcutInfo] = useState(false)
+  const [showRecurringManager, setShowRecurringManager] = useState(false)
+  const [showPendingManager, setShowPendingManager] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [deleteRecurringId, setDeleteRecurringId] = useState<string | null>(null)
 
   // Auth & Sync States
   const [authUserEmail, setAuthUserEmail] = useState<string | null>(null)
@@ -56,18 +77,17 @@ export const SettingsPage: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false)
   const [pendingSyncCount, setPendingSyncCount] = useState(0)
 
+  // Data states
+  const [isConverting, setIsConverting] = useState(false)
+  const [restoreFile, setRestoreFile] = useState<File | null>(null)
+  const restoreInputRef = useRef<HTMLInputElement>(null)
+
   // Category form state
   const [newCatName, setNewCatName] = useState('')
-  const [newCatIcon, setNewCatIcon] = useState('🍕')
-  const newCatColor = '#ef4444'
+  const [newCatIcon, setNewCatIcon] = useState(CATEGORY_ICON_CHOICES[0])
+  const [newCatColor, setNewCatColor] = useState(CATEGORY_COLORS[0])
 
   const loadData = useCallback(async () => {
-    await Promise.all([
-      loadCategories(),
-      loadRecurringTransactions(),
-      loadTransactions(),
-    ])
-
     // Load sync queue count
     const queue = await db.syncQueue.count()
     setPendingSyncCount(queue)
@@ -76,13 +96,13 @@ export const SettingsPage: React.FC = () => {
     if (isSupabaseConfigured) {
       const { data } = await supabase.auth.getSession()
       if (data.session?.user) {
-        setAuthUserEmail(data.session.user.email || 'Пользователь')
+        setAuthUserEmail(data.session.user.email || t('settings.user'))
         setUserId(data.session.user.id)
       } else {
         setAuthUserEmail(null)
       }
     }
-  }, [loadCategories, loadRecurringTransactions, loadTransactions, setUserId])
+  }, [setUserId, t])
 
   useEffect(() => {
     loadData()
@@ -94,17 +114,28 @@ export const SettingsPage: React.FC = () => {
       const { processed } = await processSyncQueue()
       const queue = await db.syncQueue.count()
       setPendingSyncCount(queue)
-      toast.success(`Синхронизировано: ${processed} записей`)
+      toast.success(t('settings.synced', { count: processed }))
     } catch {
-      toast.error('Ошибка синхронизации')
+      toast.error(t('settings.syncError'))
     } finally {
       setIsSyncing(false)
     }
   }
 
+  // Shared by sign-in and registration: adopt the account, move guest data to it, reload
+  const completeAuth = async (user: { id: string; email?: string }, successMessage: string) => {
+    setAuthUserEmail(user.email || t('settings.user'))
+    setUserId(user.id)
+    await migrateGuestData(user.id)
+    await reloadAllData()
+    toast.success(successMessage)
+    setShowAuthModal(false)
+    loadData()
+  }
+
   const handleLogin = async () => {
     if (!authEmail || !authPassword) {
-      toast.error('Заполните email и пароль')
+      toast.error(t('settings.fillEmailPassword'))
       return
     }
     setIsAuthLoading(true)
@@ -114,16 +145,9 @@ export const SettingsPage: React.FC = () => {
         password: authPassword,
       })
       if (error) throw error
-      if (data.user) {
-        setAuthUserEmail(data.user.email || 'Пользователь')
-        setUserId(data.user.id)
-        await migrateGuestData(data.user.id)
-        toast.success('Успешный вход! Данные синхронизированы.')
-        setShowAuthModal(false)
-        loadData()
-      }
+      if (data.user) await completeAuth(data.user, t('settings.signedIn'))
     } catch (e: any) {
-      toast.error(e.message || 'Ошибка входа')
+      toast.error(e.message || t('settings.authError'))
     } finally {
       setIsAuthLoading(false)
     }
@@ -131,7 +155,7 @@ export const SettingsPage: React.FC = () => {
 
   const handleRegister = async () => {
     if (!authEmail || !authPassword) {
-      toast.error('Заполните email и пароль')
+      toast.error(t('settings.fillEmailPassword'))
       return
     }
     setIsAuthLoading(true)
@@ -141,16 +165,9 @@ export const SettingsPage: React.FC = () => {
         password: authPassword,
       })
       if (error) throw error
-      if (data.user) {
-        setAuthUserEmail(data.user.email || 'Пользователь')
-        setUserId(data.user.id)
-        await migrateGuestData(data.user.id)
-        toast.success('Регистрация успешна! Данные привязаны.')
-        setShowAuthModal(false)
-        loadData()
-      }
+      if (data.user) await completeAuth(data.user, t('settings.registered'))
     } catch (e: any) {
-      toast.error(e.message || 'Ошибка регистрации')
+      toast.error(e.message || t('settings.authError'))
     } finally {
       setIsAuthLoading(false)
     }
@@ -162,19 +179,103 @@ export const SettingsPage: React.FC = () => {
     }
     setAuthUserEmail(null)
     setUserId('guest')
-    toast.info('Вы вышли из аккаунта')
+    await reloadAllData()
+    toast.info(t('settings.signedOut'))
     loadData()
   }
 
   const handleExportCSV = () => {
-    exportTransactionsToCSV(transactions)
-    toast.success('Файл CSV успешно скачан')
+    if (transactions.length === 0) {
+      toast.info(t('settings.nothingToExport'))
+      return
+    }
+    exportTransactionsToCSV(transactions, (categoryId) =>
+      getCategoryName(categories.find((c) => c.id === categoryId), t)
+    )
+    toast.success(t('settings.exportDone'))
+  }
+
+  const handleExportBackup = async () => {
+    try {
+      await exportBackup(settings.userId, settings.baseCurrency)
+      toast.success(t('settings.exportDone'))
+    } catch {
+      toast.error(t('common.error'))
+    }
+  }
+
+  const handleRestoreBackup = async () => {
+    if (!restoreFile) return
+    try {
+      const { baseCurrency, transactionCount } = await restoreBackup(restoreFile, settings.userId)
+      // Amounts in the backup are expressed in the base currency it was made with
+      if (baseCurrency !== settings.baseCurrency) setCurrency(baseCurrency)
+      await reloadAllData()
+      toast.success(t('settings.restoreDone', { count: transactionCount }))
+    } catch {
+      toast.error(t('settings.restoreInvalid'))
+    }
+  }
+
+  const handleCurrencyChange = async (newCurrency: string) => {
+    if (newCurrency === settings.baseCurrency || isConverting) return
+    setIsConverting(true)
+    try {
+      // Existing totals and budget limits are stored in the base currency, so they have to
+      // be converted along with the setting.
+      await convertBaseCurrency(settings.userId, settings.baseCurrency, newCurrency)
+      setCurrency(newCurrency)
+      await reloadAllData()
+      toast.success(t('settings.currencyConverted', { currency: newCurrency }))
+    } catch {
+      toast.error(t('settings.currencyRatesUnavailable'))
+    } finally {
+      setIsConverting(false)
+    }
   }
 
   const handleArchiveCategory = async (id: string) => {
     try {
       await archiveCategoryById(id)
       toast.success(t('categories.archived'))
+    } catch {
+      toast.error(t('common.error'))
+    }
+  }
+
+  const handleOpenAddCategory = () => {
+    setNewCatName('')
+    setNewCatColor(pickCategoryColor(categories))
+    setShowAddCategory(true)
+  }
+
+  const handleAddCategory = async () => {
+    if (!newCatName.trim()) {
+      toast.error(t('categories.nameRequired'))
+      return
+    }
+    try {
+      await addCategory({ userId: settings.userId, name: newCatName.trim(), icon: newCatIcon, color: newCatColor, isArchived: false })
+      setShowAddCategory(false)
+      toast.success(t('categories.added'))
+    } catch {
+      toast.error(t('common.error'))
+    }
+  }
+
+  const handleResolvePending = async (id: string, status: 'confirmed' | 'skipped') => {
+    try {
+      await editTransaction(id, { status })
+    } catch {
+      toast.error(t('common.error'))
+    }
+  }
+
+  const handleDeleteRecurring = async () => {
+    if (!deleteRecurringId) return
+    try {
+      await removeRecurringTransaction(deleteRecurringId)
+      toast.success(t('settings.recurringDeleted'))
     } catch {
       toast.error(t('common.error'))
     }
@@ -189,23 +290,12 @@ export const SettingsPage: React.FC = () => {
       await db.chatMessages.clear()
       await db.aiInsights.clear()
       await db.syncQueue.clear()
-      
-      toast.success(t('settings.deleteDataConfirm'))
+      // A fresh start still needs categories, or nothing new could be added
+      await seedDefaultCategories(settings.userId)
+
       window.location.reload()
     } catch {
       toast.error(t('common.error'))
-    }
-  }
-
-  const applyTheme = (themeValue: AppTheme) => {
-    const isDark =
-      themeValue === 'dark' ||
-      (themeValue === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    
-    if (isDark) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
     }
   }
 
@@ -214,47 +304,45 @@ export const SettingsPage: React.FC = () => {
     applyTheme(newTheme)
   }
 
-  const [showAddCategory, setShowAddCategory] = useState(false)
-  const [showShortcutInfo, setShowShortcutInfo] = useState(false)
-  const [showRecurringManager, setShowRecurringManager] = useState(false)
-  const [showPendingManager, setShowPendingManager] = useState(false)
-  const [showAuthModal, setShowAuthModal] = useState(false)
-
   const activeCategories = categories.filter(c => !c.isArchived)
-  const pendingTransactions = transactions.filter((t) => t.status === 'pending')
+  const pendingTransactions = transactions.filter((txn) => txn.status === 'pending')
 
   return (
     <div className="space-y-6">
-      
+
       {/* Header */}
       <div>
         <h1 className="text-3xl md:text-4xl font-bold serif-heading" style={{ color: 'var(--color-text-primary)' }}>
           {t('settings.title')}
         </h1>
         <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-          Управление аккаунтом, синхронизацией и параметрами
+          {t('settings.subtitle')}
         </p>
       </div>
 
       <div className="space-y-4">
-        
+
         {/* Section: Account & Cloud Sync */}
         <div className="card p-5 space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-            Аккаунт и Синхронизация
+            {t('settings.accountAndSync')}
           </h2>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[var(--color-surface-2)] flex items-center justify-center">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-[var(--color-surface-2)] flex items-center justify-center shrink-0">
                 {authUserEmail ? <User size={20} className="text-[var(--color-income)]" /> : <CloudOff size={20} className="text-[var(--color-text-muted)]" />}
               </div>
-              <div>
-                <span className="text-sm font-semibold block" style={{ color: 'var(--color-text-primary)' }}>
-                  {authUserEmail || 'Гостевой режим (офлайн)'}
+              <div className="min-w-0">
+                <span className="text-sm font-semibold block truncate" style={{ color: 'var(--color-text-primary)' }}>
+                  {authUserEmail || t('settings.guest')}
                 </span>
                 <span className="text-xs text-[var(--color-text-muted)]">
-                  {authUserEmail ? 'Облачная синхронизация активна' : 'Данные хранятся локально в браузере'}
+                  {authUserEmail
+                    ? t('settings.syncActive')
+                    : isSupabaseConfigured
+                      ? t('settings.storedLocally')
+                      : t('settings.syncNotConfigured')}
                 </span>
               </div>
             </div>
@@ -262,15 +350,19 @@ export const SettingsPage: React.FC = () => {
             {authUserEmail ? (
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-xl border border-[var(--color-border)] text-xs font-semibold hover:bg-[var(--color-surface-2)] transition-colors text-[var(--color-expense)]"
-                title="Выйти из аккаунта"
+                className="p-2 rounded-xl border border-[var(--color-border)] text-xs font-semibold hover:bg-[var(--color-surface-2)] transition-colors text-[var(--color-expense)] shrink-0"
+                title={t('settings.signOut')}
+                aria-label={t('settings.signOut')}
               >
                 <LogOut size={16} />
               </button>
             ) : (
-              <Button size="sm" onClick={() => setShowAuthModal(true)}>
-                Войти / Создать аккаунт
-              </Button>
+              // Without a configured backend there is nothing to sign in to
+              isSupabaseConfigured && (
+                <Button size="sm" onClick={() => setShowAuthModal(true)} className="shrink-0">
+                  {t('settings.signIn')}
+                </Button>
+              )
             )}
           </div>
 
@@ -279,7 +371,7 @@ export const SettingsPage: React.FC = () => {
             <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)]">
               <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
                 <Cloud size={14} />
-                <span>Очередь синхронизации: {pendingSyncCount} записей</span>
+                <span>{t('settings.syncQueue', { count: pendingSyncCount })}</span>
               </div>
               <button
                 onClick={handleManualSync}
@@ -287,32 +379,82 @@ export const SettingsPage: React.FC = () => {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-xs font-semibold hover:bg-[var(--color-surface-2)] transition-all"
               >
                 <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-                <span>Синхронизировать</span>
+                <span>{t('settings.syncNow')}</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Section: Data Export */}
-        <div className="card p-5 space-y-3">
+        {/* Section: Data Export & Backup */}
+        <div className="card p-5 space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-            Экспорт данных
+            {t('settings.dataSection')}
           </h2>
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-0.5 min-w-0">
               <span className="text-sm font-semibold block" style={{ color: 'var(--color-text-primary)' }}>
-                Экспорт расходов в CSV
+                {t('settings.exportCSV')}
               </span>
               <span className="text-xs text-[var(--color-text-muted)]">
-                Скачайте готовую табличную выписку всех транзакций
+                {t('settings.exportCSVHint')}
               </span>
             </div>
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-all shrink-0"
             >
               <Download size={14} />
-              <span>Скачать CSV</span>
+              <span>CSV</span>
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-0.5 min-w-0">
+              <span className="text-sm font-semibold block" style={{ color: 'var(--color-text-primary)' }}>
+                {t('settings.backup')}
+              </span>
+              <span className="text-xs text-[var(--color-text-muted)]">
+                {t('settings.backupHint')}
+              </span>
+            </div>
+            <button
+              id="export-backup-btn"
+              onClick={handleExportBackup}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-all shrink-0"
+            >
+              <Download size={14} />
+              <span>{t('settings.download')}</span>
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-0.5 min-w-0">
+              <span className="text-sm font-semibold block" style={{ color: 'var(--color-text-primary)' }}>
+                {t('settings.restore')}
+              </span>
+              <span className="text-xs text-[var(--color-text-muted)]">
+                {t('settings.restoreHint')}
+              </span>
+            </div>
+            <input
+              ref={restoreInputRef}
+              id="restore-backup-input"
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                setRestoreFile(e.target.files?.[0] ?? null)
+                // Allow picking the same file again later
+                e.target.value = ''
+              }}
+            />
+            <button
+              onClick={() => restoreInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-all shrink-0"
+            >
+              <Upload size={14} />
+              <span>{t('settings.chooseFile')}</span>
             </button>
           </div>
         </div>
@@ -320,7 +462,7 @@ export const SettingsPage: React.FC = () => {
         {/* Section: General Settings */}
         <div className="card p-5 space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-            Общие настройки
+            {t('settings.general')}
           </h2>
 
           {/* Currency */}
@@ -330,9 +472,11 @@ export const SettingsPage: React.FC = () => {
               <span className="text-sm font-semibold">{t('settings.currency')}</span>
             </div>
             <select
+              id="base-currency-select"
               value={settings.baseCurrency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-primary)]"
+              onChange={(e) => handleCurrencyChange(e.target.value)}
+              disabled={isConverting}
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] disabled:opacity-50"
             >
               {SUPPORTED_CURRENCIES.map((c) => (
                 <option key={c.code} value={c.code}>
@@ -349,6 +493,7 @@ export const SettingsPage: React.FC = () => {
               <span className="text-sm font-semibold">{t('settings.language')}</span>
             </div>
             <select
+              id="language-select"
               value={settings.language}
               onChange={(e) => setLanguage(e.target.value as AppLanguage)}
               className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-primary)]"
@@ -382,7 +527,7 @@ export const SettingsPage: React.FC = () => {
         {/* Section: Features */}
         <div className="card p-5 space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-            Управление объектами
+            {t('settings.manage')}
           </h2>
 
           <button
@@ -456,6 +601,7 @@ export const SettingsPage: React.FC = () => {
               checked={settings.aiEnabled}
               onChange={(e) => setAIEnabled(e.target.checked)}
               className="w-4 h-4 rounded border-[var(--color-border)]"
+              aria-label={t('settings.aiFeatures')}
             />
           </div>
           <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
@@ -466,7 +612,7 @@ export const SettingsPage: React.FC = () => {
         {/* Section: Danger Zone */}
         <div className="card p-5 space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--color-expense)]">
-            Сброс данных
+            {t('settings.dangerZone')}
           </h2>
 
           <button
@@ -484,11 +630,11 @@ export const SettingsPage: React.FC = () => {
       <Modal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        title="Вход / Регистрация Supabase"
+        title={t('settings.authTitle')}
       >
         <div className="space-y-4">
           <p className="text-xs text-[var(--color-text-secondary)]">
-            Привяжите ваш аккаунт Supabase для синхронизации данных между устройствами.
+            {t('settings.authHint')}
           </p>
           <Input
             id="auth-email-input"
@@ -501,7 +647,7 @@ export const SettingsPage: React.FC = () => {
           <Input
             id="auth-password-input"
             type="password"
-            label="Пароль"
+            label={t('settings.password')}
             placeholder="••••••••"
             value={authPassword}
             onChange={(e) => setAuthPassword(e.target.value)}
@@ -509,10 +655,10 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-2 pt-2">
             <Button variant="ghost" onClick={handleLogin} loading={isAuthLoading}>
-              Войти
+              {t('settings.logIn')}
             </Button>
             <Button onClick={handleRegister} loading={isAuthLoading}>
-              Регистрация
+              {t('settings.register')}
             </Button>
           </div>
         </div>
@@ -527,22 +673,28 @@ export const SettingsPage: React.FC = () => {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
-              {activeCategories.length} активных
+              {t('categories.activeCount', { count: activeCategories.length })}
             </span>
-            <Button size="sm" onClick={() => setShowAddCategory(true)}>
-              <Plus size={14} className="mr-1" /> Добавить
+            <Button size="sm" onClick={handleOpenAddCategory}>
+              <Plus size={14} /> {t('common.add')}
             </Button>
           </div>
 
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {activeCategories.map((c) => (
               <div key={c.id} className="flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
                   <span className="text-xl">{c.icon}</span>
-                  <span className="text-sm font-semibold">{c.name}</span>
+                  <span className="text-sm font-semibold truncate">{getCategoryName(c, t)}</span>
                 </div>
                 {!c.isDefault && (
-                  <button onClick={() => handleArchiveCategory(c.id)} className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-expense)] rounded-lg">
+                  <button
+                    onClick={() => handleArchiveCategory(c.id)}
+                    className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-expense)] rounded-lg"
+                    aria-label={t('categories.archive')}
+                    title={t('categories.archive')}
+                  >
                     <Archive size={16} />
                   </button>
                 )}
@@ -552,36 +704,24 @@ export const SettingsPage: React.FC = () => {
         </div>
       </BottomSheet>
 
-      {/* Danger Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleClearAllData}
-        title={t('settings.deleteData')}
-        description={t('settings.deleteDataConfirm')}
-        confirmLabel={t('common.delete')}
-        cancelLabel={t('common.cancel')}
-        danger
-      />
-
       {/* Add Category Sheet */}
       <BottomSheet
         isOpen={showAddCategory}
         onClose={() => setShowAddCategory(false)}
-        title="Новая категория"
+        title={t('categories.newTitle')}
       >
         <div className="space-y-4">
           <Input
             id="new-cat-name"
-            label="Название"
-            placeholder="Например: Кофе"
+            label={t('categories.name')}
+            placeholder={t('categories.namePlaceholder')}
             value={newCatName}
             onChange={(e) => setNewCatName(e.target.value)}
           />
           <div>
-            <label className="text-xs font-semibold text-[var(--color-text-muted)] mb-2 block">Иконка</label>
+            <label className="text-xs font-semibold text-[var(--color-text-muted)] mb-2 block">{t('categories.icon')}</label>
             <div className="flex flex-wrap gap-2">
-              {['🍕','🚗','🏠','🎮','💊','📱','✈️','🛍️','📚','🎵','🐾','💡'].map(emoji => (
+              {CATEGORY_ICON_CHOICES.map(emoji => (
                 <button
                   key={emoji}
                   onClick={() => setNewCatIcon(emoji)}
@@ -592,13 +732,28 @@ export const SettingsPage: React.FC = () => {
               ))}
             </div>
           </div>
+          <div>
+            <label className="text-xs font-semibold text-[var(--color-text-muted)] mb-2 block">{t('categories.color')}</label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORY_COLORS.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setNewCatColor(color)}
+                  className="w-7 h-7 rounded-full transition-transform"
+                  style={{
+                    backgroundColor: color,
+                    transform: newCatColor === color ? 'scale(1.15)' : 'scale(1)',
+                    boxShadow: newCatColor === color ? '0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-text-primary)' : 'none',
+                  }}
+                  aria-label={color}
+                  aria-pressed={newCatColor === color}
+                />
+              ))}
+            </div>
+          </div>
           <div className="flex gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setShowAddCategory(false)}>Отмена</Button>
-            <Button onClick={async () => {
-              if (!newCatName.trim()) { toast.error('Введите название'); return }
-              await addCategory({ userId: settings.userId, name: newCatName.trim(), icon: newCatIcon, color: newCatColor, isArchived: false })
-              setNewCatName(''); setShowAddCategory(false); toast.success('Категория добавлена')
-            }}>Добавить</Button>
+            <Button variant="ghost" onClick={() => setShowAddCategory(false)}>{t('common.cancel')}</Button>
+            <Button id="add-category-btn" fullWidth onClick={handleAddCategory}>{t('common.add')}</Button>
           </div>
         </div>
       </BottomSheet>
@@ -611,17 +766,41 @@ export const SettingsPage: React.FC = () => {
       >
         <div className="space-y-3">
           {recurringTransactions.length === 0 ? (
-            <p className="text-sm text-center text-[var(--color-text-muted)] py-8">Нет повторяющихся транзакций</p>
+            <p className="text-sm text-center text-[var(--color-text-muted)] py-8">{t('settings.noRecurring')}</p>
           ) : (
             recurringTransactions.map((rt) => (
-              <div key={rt.id} className="flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]">
-                <div>
-                  <span className="text-sm font-semibold block">{rt.note || 'Без названия'}</span>
-                  <span className="text-xs text-[var(--color-text-muted)]">{rt.frequency} · {rt.amount} {rt.currency}</span>
+              <div key={rt.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]">
+                <div className="min-w-0">
+                  <span className="text-sm font-semibold block truncate">
+                    {rt.note || getCategoryName(categories.find((c) => c.id === rt.categoryId), t)}
+                  </span>
+                  <span className="text-xs text-[var(--color-text-muted)] block">
+                    {t(`transaction.${rt.frequency}`)} · {formatAmount(rt.amount, rt.currency)}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-text-muted)] block">
+                    {rt.isActive
+                      ? t('settings.nextRun', { date: formatDate(rt.nextRunDate, i18n.language) })
+                      : t('settings.recurringPaused')}
+                  </span>
                 </div>
-                <span className={`text-xs font-bold px-2 py-1 rounded-full ${rt.isActive ? 'bg-[var(--color-income)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-muted)]'}`}>
-                  {rt.isActive ? 'Активна' : 'Пауза'}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => toggleRecurringTransactionActive(rt.id, !rt.isActive)}
+                    className="p-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                    aria-label={rt.isActive ? t('settings.pause') : t('settings.resume')}
+                    title={rt.isActive ? t('settings.pause') : t('settings.resume')}
+                  >
+                    {rt.isActive ? <Pause size={14} /> : <Play size={14} />}
+                  </button>
+                  <button
+                    onClick={() => setDeleteRecurringId(rt.id)}
+                    className="p-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-expense)]"
+                    aria-label={t('common.delete')}
+                    title={t('common.delete')}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -636,15 +815,34 @@ export const SettingsPage: React.FC = () => {
       >
         <div className="space-y-3">
           {pendingTransactions.length === 0 ? (
-            <p className="text-sm text-center text-[var(--color-text-muted)] py-8">Нет ожидающих транзакций</p>
+            <p className="text-sm text-center text-[var(--color-text-muted)] py-8">{t('settings.noPending')}</p>
           ) : (
             pendingTransactions.map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]">
-                <div>
-                  <span className="text-sm font-semibold block">{tx.note || 'Без описания'}</span>
-                  <span className="text-xs text-[var(--color-text-muted)]">{tx.date} · {tx.amount} {tx.currency}</span>
+              <div key={tx.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]">
+                <div className="min-w-0">
+                  <span className="text-sm font-semibold block truncate">
+                    {tx.note || getCategoryName(categories.find((c) => c.id === tx.categoryId), t)}
+                  </span>
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    {formatDate(tx.date, i18n.language)} · {formatAmount(tx.amount, tx.currency)}
+                  </span>
                 </div>
-                <span className="text-xs font-bold px-2 py-1 rounded-full bg-amber-500/20 text-amber-400">Pending</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => handleResolvePending(tx.id, 'confirmed')}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-bg)]"
+                  >
+                    <Check size={13} /> {t('transaction.confirm')}
+                  </button>
+                  <button
+                    onClick={() => handleResolvePending(tx.id, 'skipped')}
+                    className="p-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)]"
+                    aria-label={t('transaction.skip')}
+                    title={t('transaction.skip')}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -658,15 +856,47 @@ export const SettingsPage: React.FC = () => {
         title={t('settings.quickAccess')}
       >
         <div className="space-y-4 text-sm text-[var(--color-text-secondary)]">
-          <p>Чтобы добавить ярлык быстрого добавления на главный экран:</p>
+          <p>{t('settings.shortcutIntro')}</p>
           <ol className="list-decimal list-inside space-y-2">
-            <li>Откройте приложение в браузере Safari (iOS) или Chrome (Android).</li>
-            <li>Нажмите кнопку «Поделиться» / меню браузера.</li>
-            <li>Выберите «На экран «Домой»» / «Добавить на главный экран».</li>
-            <li>Приложение будет работать как нативное, без браузерной строки.</li>
+            <li>{t('settings.shortcutStep1')}</li>
+            <li>{t('settings.shortcutStep2')}</li>
+            <li>{t('settings.shortcutStep3')}</li>
+            <li>{t('settings.shortcutStep4')}</li>
           </ol>
         </div>
       </BottomSheet>
+
+      {/* Danger Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleClearAllData}
+        title={t('settings.deleteData')}
+        description={t('settings.deleteDataWarning')}
+        confirmLabel={t('settings.deleteDataConfirm')}
+        danger
+      />
+
+      {/* Restore replaces everything, so it asks first */}
+      <ConfirmDialog
+        isOpen={restoreFile !== null}
+        onClose={() => setRestoreFile(null)}
+        onConfirm={handleRestoreBackup}
+        title={t('settings.restoreConfirmTitle')}
+        description={t('settings.restoreConfirmText', { file: restoreFile?.name ?? '' })}
+        confirmLabel={t('settings.restore')}
+        danger
+      />
+
+      <ConfirmDialog
+        isOpen={deleteRecurringId !== null}
+        onClose={() => setDeleteRecurringId(null)}
+        onConfirm={handleDeleteRecurring}
+        title={t('settings.deleteRecurringTitle')}
+        description={t('settings.deleteRecurringText')}
+        confirmLabel={t('common.delete')}
+        danger
+      />
 
     </div>
   )

@@ -4,6 +4,7 @@ import { BottomNav } from './BottomNav'
 import { ToastContainer } from '@/components/ui/Toast'
 import { IOSInstallPrompt } from './IOSInstallPrompt'
 import { useAppStore } from '@/store/appStore'
+import { applyTheme, isDarkTheme } from '@/lib/theme'
 import { WifiOff, Home, History, MessageSquare, BarChart2, Settings, Sun, Moon, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AppTheme } from '@/types'
@@ -15,27 +16,18 @@ export const AppShell: React.FC = () => {
   const location = useLocation()
   const isOnboarding = location.pathname === '/onboarding'
 
-  // Apply dark mode class to HTML element
-  const applyThemeToDocument = (themeValue: AppTheme) => {
-    const isDark =
-      themeValue === 'dark' ||
-      (themeValue === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-
-    if (isDark) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }
-
   useEffect(() => {
-    applyThemeToDocument(settings.theme)
+    applyTheme(settings.theme)
   }, [settings.theme])
 
+  // What is on screen right now ("system" resolves to the OS setting), so the toggle
+  // always flips what the user actually sees
+  const isDark = isDarkTheme(settings.theme)
+
   const toggleTheme = () => {
-    const nextTheme: AppTheme = settings.theme === 'dark' ? 'light' : 'dark'
+    const nextTheme: AppTheme = isDark ? 'light' : 'dark'
     setTheme(nextTheme)
-    applyThemeToDocument(nextTheme)
+    applyTheme(nextTheme)
   }
 
   const NAV_ITEMS = [
@@ -49,7 +41,7 @@ export const AppShell: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-colors duration-200 flex flex-col lg:flex-row">
-      
+
       {/* ── DESKTOP SIDEBAR ── */}
       {!isOnboarding && (
         <aside className="hidden lg:flex flex-col w-64 bg-[var(--color-surface)] border-r border-[var(--color-border)] h-screen sticky top-0 p-6 flex-shrink-0 justify-between">
@@ -63,17 +55,17 @@ export const AppShell: React.FC = () => {
             </div>
 
             {/* Links */}
-            <nav className="flex flex-col gap-1.5" aria-label="Боковая навигация">
+            <nav className="flex flex-col gap-1.5" aria-label={t('nav.sidebarLabel')}>
               {NAV_ITEMS.map(({ to, icon: Icon, labelKey }) => (
                 <NavLink
                   key={to}
                   to={to}
                   end={to === '/'}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
                       isActive
-                        ? 'bg-[var(--color-surface-2)] text-[var(--color-text-primary)] shadow-sm border border-[var(--color-border)]'
-                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)]/50'
+                        ? 'bg-[var(--color-surface-2)] text-[var(--color-text-primary)] shadow-sm border-[var(--color-border)]'
+                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)]/50 border-transparent'
                     }`
                   }
                 >
@@ -87,13 +79,13 @@ export const AppShell: React.FC = () => {
           {/* Theme switcher */}
           <button
             onClick={toggleTheme}
-            className="flex items-center justify-between px-3 py-3 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-sm font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+            className="flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-sm font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             <span className="flex items-center gap-2">
-              {settings.theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
-              <span>{settings.theme === 'dark' ? 'Тёмная тема' : 'Светлая тема'}</span>
+              {isDark ? <Moon size={16} /> : <Sun size={16} />}
+              <span>{isDark ? t('settings.darkTheme') : t('settings.lightTheme')}</span>
             </span>
-            <span className="text-[10px] uppercase opacity-60">Переключить</span>
+            <span className="text-[10px] uppercase opacity-60">{t('common.toggle')}</span>
           </button>
         </aside>
       )}
@@ -110,16 +102,16 @@ export const AppShell: React.FC = () => {
           <button
             onClick={toggleTheme}
             className="p-2 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-            aria-label="Переключить тему"
+            aria-label={t('settings.toggleTheme')}
           >
-            {settings.theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
+            {isDark ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </header>
       )}
 
       {/* ── MAIN CONTENT CONTAINER ── */}
       <div className="flex-1 flex flex-col min-w-0">
-        
+
         {/* Offline indicator */}
         {!isOnline && !isOnboarding && (
           <div

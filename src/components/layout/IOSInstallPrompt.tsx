@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { Share, Plus, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 export const IOSInstallPrompt: React.FC = () => {
+  const { t } = useTranslation()
   const [showPrompt, setShowPrompt] = useState(false)
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export const IOSInstallPrompt: React.FC = () => {
       <button
         onClick={handleDismiss}
         className="absolute top-3.5 right-3.5 p-1 rounded-full opacity-60 hover:opacity-100 transition-opacity"
-        aria-label="Закрыть"
+        aria-label={t('common.close')}
       >
         <X size={15} style={{ color: 'var(--color-text-primary)' }} />
       </button>
@@ -55,10 +57,10 @@ export const IOSInstallPrompt: React.FC = () => {
         {/* Title */}
         <div className="pr-6">
           <h4 className="serif-heading text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>
-            Установить Xarajat
+            {t('ios.installPrompt')}
           </h4>
           <p className="text-xs mt-1 leading-normal" style={{ color: 'var(--color-text-secondary)' }}>
-            Добавьте приложение на главный экран для быстрого доступа, работы в офлайне и полноэкранного режима.
+            {t('ios.installDesc')}
           </p>
         </div>
 
@@ -69,7 +71,7 @@ export const IOSInstallPrompt: React.FC = () => {
               1
             </div>
             <div style={{ color: 'var(--color-text-secondary)' }}>
-              Нажмите кнопку <strong className="font-semibold text-[var(--color-text-primary)]">Поделиться</strong> (иконка <Share size={12} className="inline mb-0.5 mx-0.5 text-[var(--color-text-primary)]" /> в панели Safari)
+              {t('ios.installStep1')} <Share size={12} className="inline mb-0.5 mx-0.5 text-[var(--color-text-primary)]" />
             </div>
           </div>
 
@@ -78,7 +80,7 @@ export const IOSInstallPrompt: React.FC = () => {
               2
             </div>
             <div style={{ color: 'var(--color-text-secondary)' }}>
-              Выберите пункт <strong className="font-semibold text-[var(--color-text-primary)]">На экран «Домой»</strong> (иконка <Plus size={12} className="inline mb-0.5 mx-0.5 text-[var(--color-text-primary)]" /> в меню действий)
+              {t('ios.installStep2')} <Plus size={12} className="inline mb-0.5 mx-0.5 text-[var(--color-text-primary)]" />
             </div>
           </div>
         </div>
@@ -93,7 +95,7 @@ export const IOSInstallPrompt: React.FC = () => {
             color: 'var(--color-text-secondary)',
           }}
         >
-          Понятно, спасибо
+          {t('ios.installDismiss')}
         </button>
       </div>
     </div>

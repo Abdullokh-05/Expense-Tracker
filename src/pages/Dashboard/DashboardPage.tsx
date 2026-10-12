@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Plus, TrendingUp, TrendingDown, ArrowRight, Wallet } from 'lucide-react'
@@ -6,23 +6,27 @@ import { useAppStore } from '@/store/appStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { useCategoryStore } from '@/store/categoryStore'
 import { formatAmount, getDateRange, groupByDate, formatDate } from '@/lib/utils'
+import { confirmedInRange, getCategorySpending, sumByType } from '@/lib/analytics'
 import { AddTransactionSheet } from '@/components/transactions/AddTransactionSheet'
 import { TransactionItem } from '@/components/transactions/TransactionItem'
+import { useTransactionActions } from '@/components/transactions/useTransactionActions'
 
 type DashboardPeriod = 'today' | 'week' | 'month'
 
+// Categories listed in the breakdown before the rest are folded into one line
+const BREAKDOWN_LIMIT = 6
+
 export const DashboardPage: React.FC = () => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { settings } = useAppStore()
-  const { transactions, loadTransactions } = useTransactionStore()
-  const { loadCategories, categories } = useCategoryStore()
+  const transactions = useTransactionStore((s) => s.transactions)
+  const categories = useCategoryStore((s) => s.categories)
+  const { onEdit, onDelete, dialogs } = useTransactionActions()
 
   const [period, setPeriod] = useState<DashboardPeriod>('month')
   const [showAddSheet, setShowAddSheet] = useState(false)
-  const [totalExpenses, setTotalExpenses] = useState(0)
-  const [totalIncome, setTotalIncome] = useState(0)
 
   // Handle deep link: /add?quick=true
   useEffect(() => {
@@ -30,32 +34,25 @@ export const DashboardPage: React.FC = () => {
     if (isQuick) setShowAddSheet(true)
   }, [searchParams])
 
-  const loadData = useCallback(async () => {
-    const { from, to } = getDateRange(period)
-    await loadTransactions({ from, to, status: 'confirmed' })
-    await loadCategories()
-  }, [period, loadTransactions, loadCategories])
+  const periodTransactions = useMemo(
+    () => confirmedInRange(transactions, getDateRange(period)),
+    [transactions, period]
+  )
 
-  useEffect(() => {
-    loadData()
-  }, [loadData])
-
-  useEffect(() => {
-    const { from, to } = getDateRange(period)
-    const periodExpenses = transactions
-      .filter((txn) => txn.type === 'expense' && txn.date >= from && txn.date <= to)
-      .reduce((sum, txn) => sum + txn.amountInBaseCurrency, 0)
-    const periodIncome = transactions
-      .filter((txn) => txn.type === 'income' && txn.date >= from && txn.date <= to)
-      .reduce((sum, txn) => sum + txn.amountInBaseCurrency, 0)
-    setTotalExpenses(periodExpenses)
-    setTotalIncome(periodIncome)
-  }, [transactions, period])
-
+  const totalExpenses = sumByType(periodTransactions, 'expense')
+  const totalIncome = sumByType(periodTransactions, 'income')
   const balance = totalIncome - totalExpenses
-  
+
+  const breakdown = useMemo(
+    () => getCategorySpending(periodTransactions, categories, t),
+    [periodTransactions, categories, t]
+  )
+  const topCategories = breakdown.slice(0, BREAKDOWN_LIMIT)
+  const otherCategories = breakdown.slice(BREAKDOWN_LIMIT)
+  const otherAmount = otherCategories.reduce((sum, item) => sum + item.amount, 0)
+
   // Show up to 8 recent operations on desktop
-  const recentTransactions = transactions.slice(0, 8)
+  const recentTransactions = periodTransactions.slice(0, 8)
   const grouped = groupByDate(recentTransactions)
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
@@ -67,15 +64,15 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      
+
       {/* ── HEADER TITLE BLOCK ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold serif-heading" style={{ color: 'var(--color-text-primary)' }}>
-            Обзор финансов
+            {t('dashboard.title')}
           </h1>
           <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            Ваш личный бюджет под контролем
+            {t('dashboard.subtitle')}
           </p>
         </div>
 
@@ -102,7 +99,7 @@ export const DashboardPage: React.FC = () => {
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors bg-[var(--color-accent)] text-[var(--color-bg)] hover:opacity-90"
           >
             <Plus size={16} />
-            <span>Добавить операцию</span>
+            <span>{t('dashboard.addTransaction')}</span>
           </button>
         </div>
       </div>
@@ -126,12 +123,12 @@ export const DashboardPage: React.FC = () => {
 
       {/* ── GRID: KEY STATS (Balance, Expenses, Income) ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
+
         {/* Balance Card */}
         <div className="card p-5 relative overflow-hidden" style={{ background: 'var(--color-surface)' }}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-[var(--color-text-muted)] font-semibold uppercase tracking-wider">
-              {t('dashboard.balance') || 'Текущий баланс'}
+              {t('dashboard.balance')}
             </span>
             <span className="text-[10px] font-bold bg-[var(--color-surface-2)] text-[var(--color-text-primary)] border border-[var(--color-border)] rounded-full px-2.5 py-0.5">
               {settings.baseCurrency}
@@ -153,7 +150,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="text-2xl font-bold amount-display" style={{ color: 'var(--color-expense)' }}>
-            -{formatAmount(totalExpenses, settings.baseCurrency)}
+            −{formatAmount(totalExpenses, settings.baseCurrency)}
           </div>
         </div>
 
@@ -174,26 +171,65 @@ export const DashboardPage: React.FC = () => {
 
       </div>
 
-      {/* ── RESPONSIVE BODY GRID: CHART & RECENT OPERATIONS SIDE BY SIDE ── */}
+      {/* ── RESPONSIVE BODY GRID: BREAKDOWN & RECENT OPERATIONS SIDE BY SIDE ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left Side: Summary / Quick Guide (placeholder chart or welcome visual) */}
+
+        {/* Left Side: where the money went in the selected period */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="card p-5 min-h-[250px] flex flex-col justify-between" style={{ background: 'var(--color-surface)' }}>
-            <div className="space-y-2">
-              <h3 className="text-lg font-bold serif-heading">Анализ текущего периода</h3>
-              <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
-                Вы смотрите данные за выбранный период. Чтобы увидеть графики распределения расходов и динамику трат, перейдите в раздел отчётов.
-              </p>
+          <div className="card p-5 min-h-[250px] flex flex-col justify-between gap-4" style={{ background: 'var(--color-surface)' }}>
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold serif-heading">{t('dashboard.breakdownTitle')}</h3>
+
+              {breakdown.length === 0 ? (
+                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                  {t('dashboard.breakdownEmpty')}
+                </p>
+              ) : (
+                <div className="space-y-3.5">
+                  {topCategories.map((item) => (
+                    <div key={item.categoryId} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-base leading-none shrink-0">{item.categoryIcon}</span>
+                          <span className="font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                            {item.categoryName}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{item.percentage}%</span>
+                          <span className="font-bold amount-display" style={{ color: 'var(--color-text-primary)' }}>
+                            {formatAmount(item.amount, settings.baseCurrency)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="progress-track">
+                        <div
+                          className="progress-fill"
+                          style={{
+                            width: `${totalExpenses > 0 ? (item.amount / totalExpenses) * 100 : 0}%`,
+                            background: item.categoryColor,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {otherCategories.length > 0 && (
+                    <div className="flex items-center justify-between text-xs pt-1" style={{ color: 'var(--color-text-muted)' }}>
+                      <span>{t('dashboard.breakdownMore', { count: otherCategories.length })}</span>
+                      <span className="font-semibold amount-display">{formatAmount(otherAmount, settings.baseCurrency)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            
-            <div className="pt-4 border-t border-[var(--color-border)] flex items-center justify-between">
-              <span className="text-xs font-semibold text-[var(--color-text-secondary)]">Быстрый переход:</span>
-              <button 
+
+            <div className="pt-4 border-t border-[var(--color-border)] flex items-center justify-end">
+              <button
                 onClick={() => navigate('/reports')}
                 className="flex items-center gap-1 text-xs font-bold text-[var(--color-text-primary)] hover:underline"
               >
-                <span>Перейти к графикам</span>
+                <span>{t('dashboard.openReports')}</span>
                 <ArrowRight size={12} />
               </button>
             </div>
@@ -216,7 +252,7 @@ export const DashboardPage: React.FC = () => {
             )}
           </div>
 
-          {transactions.length === 0 ? (
+          {recentTransactions.length === 0 ? (
             <div className="card p-8 flex flex-col items-center justify-center text-center animate-fade-in" style={{ background: 'var(--color-surface)' }}>
               <div className="w-12 h-12 rounded-xl bg-[var(--color-surface-2)] flex items-center justify-center text-xl mb-3">
                 <Wallet size={20} className="text-[var(--color-text-muted)]" />
@@ -233,38 +269,38 @@ export const DashboardPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {sortedDates.map((date, dateIdx) => (
-                <div key={date} style={{ animationDelay: `${dateIdx * 40}ms` }} className="animate-fade-in space-y-2">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
-                      {formatDate(date)}
-                    </span>
-                    <span className="text-xs text-[var(--color-text-muted)] font-medium amount-display">
-                      -{formatAmount(
-                        grouped[date]
-                          .filter((txnItem) => txnItem.type === 'expense')
-                          .reduce((accSum, txnItem) => accSum + txnItem.amountInBaseCurrency, 0),
-                        settings.baseCurrency
+              {sortedDates.map((date, dateIdx) => {
+                const dayExpenses = sumByType(grouped[date], 'expense')
+                return (
+                  <div key={date} style={{ animationDelay: `${dateIdx * 40}ms` }} className="animate-fade-in space-y-2">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
+                        {formatDate(date, i18n.language)}
+                      </span>
+                      {dayExpenses > 0 && (
+                        <span className="text-xs text-[var(--color-text-muted)] font-medium amount-display">
+                          −{formatAmount(dayExpenses, settings.baseCurrency)}
+                        </span>
                       )}
-                    </span>
+                    </div>
+                    <div className="space-y-2">
+                      {grouped[date].map((txn) => {
+                        const cat = categories.find((cItem) => cItem.id === txn.categoryId)
+                        return (
+                          <TransactionItem
+                            key={txn.id}
+                            transaction={txn}
+                            category={cat}
+                            baseCurrency={settings.baseCurrency}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                          />
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    {grouped[date].map((txn) => {
-                      const cat = categories.find((cItem) => cItem.id === txn.categoryId)
-                      return (
-                        <TransactionItem
-                          key={txn.id}
-                          transaction={txn}
-                          category={cat}
-                          baseCurrency={settings.baseCurrency}
-                          onEdit={() => {}}
-                          onDelete={() => {}}
-                        />
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -290,8 +326,9 @@ export const DashboardPage: React.FC = () => {
         onClose={() => setShowAddSheet(false)}
         prefilledCategory={searchParams.get('category') ?? undefined}
         prefilledType={searchParams.get('type') === 'income' ? 'income' : 'expense'}
-        onSaved={loadData}
       />
+
+      {dialogs}
     </div>
   )
 }

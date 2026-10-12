@@ -8,7 +8,9 @@
     "history": "History",
     "aiChat": "AI Chat",
     "reports": "Reports",
-    "settings": "Settings"
+    "settings": "Settings",
+    "sidebarLabel": "Sidebar navigation",
+    "mainLabel": "Main navigation"
   },
   "onboarding": {
     "welcome": "Welcome to Xarajat",
@@ -35,7 +37,14 @@
     "addExpense": "Add Expense",
     "recentTransactions": "Recent",
     "noTransactions": "No transactions",
-    "noTransactionsHint": "Tap + to add your first expense"
+    "noTransactionsHint": "Tap + to add your first expense",
+    "title": "Finance overview",
+    "subtitle": "Your personal budget under control",
+    "addTransaction": "Add transaction",
+    "breakdownTitle": "Where the money goes",
+    "breakdownEmpty": "No expenses in this period yet. Add one and the breakdown by category will appear here.",
+    "breakdownMore": "More categories: {{count}}",
+    "openReports": "Full report"
   },
   "transaction": {
     "expense": "Expense",
@@ -67,11 +76,18 @@
     "suggestedCategory": "Suggested",
     "pending": "Pending confirmation",
     "confirm": "Confirm",
-    "skip": "Skip"
+    "skip": "Skip",
+    "deleted": "Transaction deleted",
+    "rateLoading": "Loading exchange rate…",
+    "rateUnavailable": "No exchange rate for this currency. Connect to the internet and try again.",
+    "hideDetails": "Hide details",
+    "showDetails": "Date, note, payment method…",
+    "recurringAuto": "Automatic",
+    "recurringConfirm": "Ask me first"
   },
   "history": {
     "title": "History",
-    "search": "Search notes",
+    "search": "Search notes or categories",
     "filter": "Filter",
     "allCategories": "All categories",
     "allTypes": "All types",
@@ -79,7 +95,14 @@
     "noResultsHint": "Try changing filters",
     "swipeHint": "Swipe for actions",
     "filters": "Filters",
-    "transactions": "transactions"
+    "transactions": "transactions",
+    "subtitle": "The full history of your transactions",
+    "allTime": "All time",
+    "customPeriod": "Custom",
+    "resetFilters": "Reset",
+    "minAmount": "Min",
+    "maxAmount": "Max",
+    "tapHint": "Tap a transaction to edit it"
   },
   "categories": {
     "title": "Categories",
@@ -102,7 +125,11 @@
     "entertainment": "Entertainment",
     "health": "Health",
     "communication": "Communication",
-    "other": "Other"
+    "other": "Other",
+    "nameRequired": "Enter a name",
+    "added": "Category added",
+    "activeCount": "Active: {{count}}",
+    "newTitle": "New category"
   },
   "budgets": {
     "title": "Budgets",
@@ -114,7 +141,13 @@
     "exceeded": "Exceeded by",
     "save": "Save",
     "cancel": "Cancel",
-    "limitRequired": "Enter limit"
+    "limitRequired": "Enter limit",
+    "subtitle": "Monthly limits · {{period}}",
+    "totalLimit": "Total limit",
+    "limitExceeded": "Total budget exceeded!",
+    "remainingBudget": "Left before the limit: {{amount}}",
+    "exceededStatus": "Exceeded",
+    "limitHint": "Leave empty to remove the limit."
   },
   "reports": {
     "title": "Reports",
@@ -129,7 +162,17 @@
     "topCategories": "Top categories",
     "aiInsight": "AI Analysis",
     "loadingInsight": "Analyzing your data...",
-    "noData": "No data for selected period"
+    "noData": "No data for selected period",
+    "subtitle": "Where your money went",
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period",
+    "changeVsPrevious": "{{change}} vs previous period",
+    "changeHint": "Compared with the same number of days of the previous period",
+    "summary": "Summary",
+    "insightTop": "Most went to “{{category}}” — {{percent}}% of spending.",
+    "insightDailyAverage": "{{amount}} a day on average.",
+    "insightLargest": "Largest expense: {{name}} — {{amount}}.",
+    "distribution": "Spending breakdown"
   },
   "aiChat": {
     "title": "AI Assistant",
@@ -141,7 +184,14 @@
     "disabled": "AI features are disabled in settings",
     "send": "Send",
     "thinking": "Thinking...",
-    "welcome": "Hi! I'm your financial assistant. Ask me about your expenses, budgets, or get saving tips."
+    "welcome": "Hi! I'm your financial assistant. Ask me about your expenses, budgets, or get saving tips.",
+    "demoBadge": "Demo",
+    "demoNote": "No AI connected yet — answers are calculated from your data on this device",
+    "answerSpending": "{{period}}: you spent {{total}}. Top categories: {{top}}.",
+    "answerCategories": "{{period}}, spending by category: {{list}}.",
+    "answerNoData": "{{period}}: no expenses yet.",
+    "answerHello": "Hi! Try asking “How much did I spend this month?” or “Spending by category”.",
+    "answerFallback": "I can't answer that yet: a real AI model isn't connected. For now I can show this month's spending and the breakdown by category."
   },
   "settings": {
     "title": "Settings",
@@ -166,7 +216,7 @@
     "pendingConfirmation": "Pending confirmation",
     "aiFeatures": "AI Features",
     "aiEnabled": "Enable AI features",
-    "aiPrivacyNote": "When enabled, your notes and spending data may be processed by an external AI service (Anthropic Claude).",
+    "aiPrivacyNote": "No AI model is connected yet: the chat answers from your data right on this device, and nothing is sent anywhere.",
     "quickAccess": "Quick Access (iOS Shortcuts)",
     "export": "Export data",
     "exportCSV": "Export as CSV",
@@ -176,7 +226,63 @@
     "deleteDataConfirm": "Delete everything",
     "cancel": "Cancel",
     "save": "Save",
-    "saved": "Saved"
+    "saved": "Saved",
+    "subtitle": "Account, sync and preferences",
+    "user": "User",
+    "accountAndSync": "Account & sync",
+    "syncActive": "Cloud sync is active",
+    "storedLocally": "Data is stored locally in this browser",
+    "syncNotConfigured": "Data is stored only in this browser. Cloud sync isn't set up yet, so keep backups.",
+    "syncQueue": "Sync queue: {{count}}",
+    "syncNow": "Sync now",
+    "synced": "Records synced: {{count}}",
+    "syncError": "Sync failed",
+    "dataSection": "Data",
+    "exportCSVHint": "A table of all transactions for Excel",
+    "backup": "Backup",
+    "backupHint": "One file with all transactions, categories and budgets",
+    "download": "Download",
+    "restore": "Restore from backup",
+    "restoreHint": "Replaces the current data with the contents of a file",
+    "chooseFile": "Choose file",
+    "restoreConfirmTitle": "Replace the current data?",
+    "restoreConfirmText": "All transactions, categories and budgets will be replaced with the data from “{{file}}”. This cannot be undone.",
+    "restoreDone": "Transactions restored: {{count}}",
+    "restoreInvalid": "This isn't a Xarajat backup file",
+    "nothingToExport": "Nothing to export yet",
+    "exportDone": "File downloaded",
+    "general": "General",
+    "manage": "Manage",
+    "dangerZone": "Reset data",
+    "currencyConverted": "Amounts converted to {{currency}}",
+    "currencyRatesUnavailable": "Couldn't get the exchange rate. Connect to the internet and try again.",
+    "fillEmailPassword": "Enter your email and password",
+    "signedIn": "Signed in! Your data is synced.",
+    "registered": "Account created! Your data is linked to it.",
+    "authError": "Sign-in failed",
+    "signedOut": "You have signed out",
+    "authTitle": "Sign in / Register",
+    "authHint": "Sign in to sync your data between devices.",
+    "password": "Password",
+    "logIn": "Sign in",
+    "register": "Register",
+    "noRecurring": "No recurring transactions",
+    "nextRun": "Next: {{date}}",
+    "recurringPaused": "Paused",
+    "pause": "Pause",
+    "resume": "Resume",
+    "deleteRecurringTitle": "Delete this recurring expense?",
+    "deleteRecurringText": "No new transactions will be created. The ones already created stay in your history.",
+    "recurringDeleted": "Recurring expense deleted",
+    "noPending": "Nothing is waiting for confirmation",
+    "shortcutIntro": "To put a quick-add shortcut on your home screen:",
+    "shortcutStep1": "Open the app in Safari (iOS) or Chrome (Android).",
+    "shortcutStep2": "Tap the Share button / the browser menu.",
+    "shortcutStep3": "Choose “Add to Home Screen”.",
+    "shortcutStep4": "The app will then run like a native one, without the browser bar.",
+    "toggleTheme": "Switch theme",
+    "darkTheme": "Dark theme",
+    "lightTheme": "Light theme"
   },
   "common": {
     "loading": "Loading...",
@@ -195,14 +301,16 @@
     "offlineHint": "You're offline. Data will sync when connection is restored.",
     "today": "Today",
     "yesterday": "Yesterday",
-    "viewAll": "All"
+    "viewAll": "All",
+    "add": "Add",
+    "toggle": "Switch"
   },
   "ios": {
-    "installPrompt": "Install App",
-    "installDesc": "To receive notifications, install Xarajat to your Home Screen.",
-    "installStep1": "Tap the Share button in Safari",
-    "installStep2": "Select 'Add to Home Screen'",
+    "installPrompt": "Install Xarajat",
+    "installDesc": "Add the app to your Home Screen for quick access, offline use and full-screen mode.",
+    "installStep1": "Tap the Share button in the Safari toolbar",
+    "installStep2": "Choose “Add to Home Screen” in the actions menu",
     "installStep3": "Tap 'Add'",
-    "installDismiss": "Later"
+    "installDismiss": "Got it, thanks"
   }
 }
