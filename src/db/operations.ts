@@ -4,12 +4,14 @@ import type {
   Category,
   Budget,
   RecurringTransaction,
+  Account,
+  WishlistItem,
   AppSettings,
   SyncQueueItem,
   SyncOperation,
   SyncTable,
 } from '@/types'
-import { DEFAULT_CATEGORIES } from '@/lib/constants'
+import { DEFAULT_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from '@/lib/constants'
 import { generateId, nowISO, todayDate } from '@/lib/utils'
 
 // =====================
@@ -71,6 +73,7 @@ export async function seedDefaultCategories(userId: string): Promise<void> {
     ...c,
     id: generateId(),
     userId,
+    kind: 'expense',
     isDefault: true,
     createdAt: now,
     updatedAt: now,
@@ -80,11 +83,119 @@ export async function seedDefaultCategories(userId: string): Promise<void> {
 }
 
 // =====================
+// Accounts
+// =====================
+export async function getAccounts(userId = 'guest'): Promise<Account[]> {
+  const accounts = await db.accounts.where('userId').equals(userId).toArray()
+  return accounts.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+}
+
+export async function createAccount(data: Omit<Account, 'id' | 'createdAt' | 'updatedAt' | 'synced'>): Promise<Account> {
+  const now = nowISO()
+  const account: Account = { ...data, id: generateId(), createdAt: now, updatedAt: now, synced: false }
+  await db.accounts.add(account)
+  await addToSyncQueue('accounts', 'create', account.id, account)
+  return account
+}
+
+export async function updateAccount(id: string, patch: Partial<Account>): Promise<void> {
+  await db.accounts.update(id, { ...patch, updatedAt: nowISO(), synced: false })
+  const full = await db.accounts.get(id)
+  if (full) await addToSyncQueue('accounts', 'update', id, full)
+}
+
+// =====================
+// Wishlist
+// =====================
+export async function getWishlistItems(userId = 'guest'): Promise<WishlistItem[]> {
+  return db.wishlistItems.where('userId').equals(userId).toArray()
+}
+
+export async function createWishlistItem(
+  data: Omit<WishlistItem, 'id' | 'createdAt' | 'updatedAt' | 'synced'>
+): Promise<WishlistItem> {
+  const now = nowISO()
+  const item: WishlistItem = { ...data, id: generateId(), createdAt: now, updatedAt: now, synced: false }
+  await db.wishlistItems.add(item)
+  await addToSyncQueue('wishlist_items', 'create', item.id, item)
+  return item
+}
+
+export async function updateWishlistItem(id: string, patch: Partial<WishlistItem>): Promise<void> {
+  await db.wishlistItems.update(id, { ...patch, updatedAt: nowISO(), synced: false })
+  const full = await db.wishlistItems.get(id)
+  if (full) await addToSyncQueue('wishlist_items', 'update', id, full)
+}
+
+export async function deleteWishlistItem(id: string): Promise<void> {
+  await db.wishlistItems.delete(id)
+  await addToSyncQueue('wishlist_items', 'delete', id, { id })
+}
+
+// =====================
+// Defaults and upgrades
+// =====================
+// Makes sure the user has what every screen assumes: income categories, at least one account,
+// and an account on every transaction. Safe to run on each start: it only fills what is missing,
+// which is how data from before accounts existed (or from an old backup) gets brought up to date.
+export async function ensureDefaults(
+  userId: string,
+  baseCurrency: string,
+  accountNames: { cash: string; card: string }
+): Promise<void> {
+  const now = nowISO()
+
+  const categories = await db.categories.where('userId').equals(userId).toArray()
+  if (!categories.some((c) => c.kind === 'income')) {
+    await db.categories.bulkAdd(
+      DEFAULT_INCOME_CATEGORIES.map((c) => ({
+        ...c,
+        id: generateId(),
+        userId,
+        kind: 'income' as const,
+        isDefault: true,
+        createdAt: now,
+        updatedAt: now,
+        synced: false,
+      }))
+    )
+  }
+
+  let accounts = await getAccounts(userId)
+  if (accounts.length === 0) {
+    const base = { userId, currency: baseCurrency, startingBalance: 0, includeInTotal: true, isWishlistFund: false, isArchived: false }
+    // Created one after the other so their order (card first) is stable
+    await createAccount({ ...base, name: accountNames.card, type: 'card' })
+    await createAccount({ ...base, name: accountNames.cash, type: 'cash' })
+    accounts = await getAccounts(userId)
+  }
+
+  const cash = accounts.find((a) => a.type === 'cash' && !a.isArchived)
+  const fallback = accounts.find((a) => a.type === 'card' && !a.isArchived) ?? accounts.find((a) => !a.isArchived) ?? accounts[0]
+
+  await db.transactions
+    .where('userId')
+    .equals(userId)
+    .filter((txn) => !txn.accountId)
+    .modify((txn) => {
+      txn.accountId = (txn.paymentMethod === 'cash' ? cash : undefined)?.id ?? fallback.id
+      txn.toAccountId = null
+      txn.toAmount = null
+    })
+
+  await db.recurringTransactions
+    .where('userId')
+    .equals(userId)
+    .filter((rt) => !rt.accountId)
+    .modify({ accountId: fallback.id })
+}
+
+// =====================
 // Transactions
 // =====================
 export async function getTransactions(userId = 'guest', filters?: {
   categoryId?: string
-  type?: 'expense' | 'income'
+  type?: Transaction['type']
   from?: string
   to?: string
   status?: 'confirmed' | 'pending' | 'skipped'
@@ -249,7 +360,7 @@ export async function getSpendingByDateRange(
   return getTransactions(userId, { from, to, status: 'confirmed' })
 }
 
-export async function getTodayTotal(userId: string, type: 'expense' | 'income' = 'expense'): Promise<number> {
+export async function getTodayTotal(userId: string, type: Transaction['type'] = 'expense'): Promise<number> {
   const today = todayDate()
   const txns = await getTransactions(userId, { from: today, to: today, type, status: 'confirmed' })
   return txns.reduce((sum, t) => sum + t.amountInBaseCurrency, 0)

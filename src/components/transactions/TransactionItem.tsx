@@ -1,13 +1,15 @@
 import React, { useRef, useState } from 'react'
-import type { Transaction, Category } from '@/types'
+import type { Transaction, Category, Account } from '@/types'
 import { formatAmount } from '@/lib/utils'
 import { getCategoryName } from '@/lib/categories'
-import { Trash2, Edit2, CornerDownRight, Repeat } from 'lucide-react'
+import { Trash2, Edit2, CornerDownRight, Repeat, ArrowLeftRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface TransactionItemProps {
   transaction: Transaction
   category?: Category
+  // Looked up by the row for its own account and, on transfers, the receiving one
+  accounts: Account[]
   baseCurrency: string
   onEdit: (transaction: Transaction) => void
   onDelete: (id: string) => void
@@ -16,6 +18,7 @@ interface TransactionItemProps {
 export const TransactionItem: React.FC<TransactionItemProps> = ({
   transaction,
   category,
+  accounts,
   baseCurrency,
   onEdit,
   onDelete,
@@ -69,8 +72,19 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   }
 
   const hasMultiCurrency = transaction.currency !== baseCurrency
+  const isTransfer = transaction.type === 'transfer'
   const isExpense = transaction.type === 'expense'
   const categoryName = getCategoryName(category, t)
+  const accountName = accounts.find((a) => a.id === transaction.accountId)?.name
+  const toAccountName = accounts.find((a) => a.id === transaction.toAccountId)?.name
+
+  const title = isTransfer
+    ? transaction.note || t('transaction.transfer')
+    : transaction.note || categoryName
+  // "Card → Cash" for a transfer; otherwise the account, plus the category when the title is a note
+  const details = isTransfer
+    ? [accountName, toAccountName].filter(Boolean).join(' → ')
+    : [accountName, transaction.note ? categoryName : null].filter(Boolean).join(' · ')
 
   return (
     <div className="relative overflow-hidden rounded-2xl select-none" style={{ background: 'var(--color-surface-2)' }}>
@@ -126,9 +140,12 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
           {/* Category icon bubble */}
           <div
             className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
-            style={{ backgroundColor: `${category?.color ?? '#6b7280'}1a` }}
+            style={{
+              backgroundColor: isTransfer ? 'var(--color-surface-2)' : `${category?.color ?? '#6b7280'}1a`,
+              color: 'var(--color-text-secondary)',
+            }}
           >
-            {category?.icon ?? '📦'}
+            {isTransfer ? <ArrowLeftRight size={18} /> : category?.icon ?? '📦'}
           </div>
 
           {/* Text info */}
@@ -137,21 +154,15 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
               className="text-sm font-semibold truncate"
               style={{ color: 'var(--color-text-primary)' }}
             >
-              {transaction.note || categoryName}
+              {title}
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+            <div className="flex items-center gap-1.5 text-[11px] mt-0.5 min-w-0" style={{ color: 'var(--color-text-muted)' }}>
               {transaction.recurringTransactionId && (
-                <span className="flex items-center gap-0.5">
+                <span className="flex items-center gap-0.5 shrink-0">
                   <Repeat size={10} />
                 </span>
               )}
-              {transaction.paymentMethod && (
-                <span className="capitalize">{t(`transaction.${transaction.paymentMethod}`)}</span>
-              )}
-              {transaction.paymentMethod && category && <span>·</span>}
-              {(transaction.note || transaction.paymentMethod) && category && (
-                <span>{categoryName}</span>
-              )}
+              <span className="truncate">{details}</span>
             </div>
           </div>
         </div>
@@ -160,9 +171,13 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
         <div className="text-right shrink-0 ml-3">
           <div
             className="text-sm font-bold amount-display"
-            style={{ color: isExpense ? 'var(--color-text-primary)' : 'var(--color-income)' }}
+            style={{
+              color: isTransfer
+                ? 'var(--color-text-secondary)'
+                : isExpense ? 'var(--color-text-primary)' : 'var(--color-income)',
+            }}
           >
-            {isExpense ? '−' : '+'}
+            {isTransfer ? '' : isExpense ? '−' : '+'}
             {formatAmount(transaction.amount, transaction.currency)}
           </div>
           {hasMultiCurrency && (

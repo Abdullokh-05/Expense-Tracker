@@ -4,6 +4,8 @@ import type {
   Category,
   Budget,
   RecurringTransaction,
+  Account,
+  WishlistItem,
   ChatMessage,
   AIInsight,
   SyncQueueItem,
@@ -16,6 +18,8 @@ export class XarajatDB extends Dexie {
   categories!: Table<Category>
   budgets!: Table<Budget>
   recurringTransactions!: Table<RecurringTransaction>
+  accounts!: Table<Account>
+  wishlistItems!: Table<WishlistItem>
   chatMessages!: Table<ChatMessage>
   aiInsights!: Table<AIInsight>
   syncQueue!: Table<SyncQueueItem>
@@ -45,6 +49,17 @@ export class XarajatDB extends Dexie {
         'baseCurrency, lastUpdated',
       settings:
         'userId',
+    })
+
+    // Accounts and the wishlist. Existing transactions are attached to accounts by
+    // ensureDefaults() at startup, which needs the user's base currency.
+    this.version(2).stores({
+      transactions:
+        'id, userId, type, status, categoryId, accountId, date, recurringTransactionId, createdAt, updatedAt, synced',
+      accounts:
+        'id, userId, isArchived, createdAt, updatedAt, synced',
+      wishlistItems:
+        'id, userId, status, createdAt, updatedAt, synced',
     })
   }
 }

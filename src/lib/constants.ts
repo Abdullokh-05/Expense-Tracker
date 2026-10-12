@@ -15,6 +15,16 @@ export const DEFAULT_CATEGORY_KEYS = [
   'food', 'transport', 'housing', 'entertainment', 'health', 'communication', 'other',
 ] as const
 
+// Default income categories (sources of earnings), seeded alongside the expense ones
+export const DEFAULT_INCOME_CATEGORIES = [
+  { name: 'Зарплата', icon: '💼', color: '#22c55e', isArchived: false },
+  { name: 'Подработка', icon: '💻', color: '#0ea5e9', isArchived: false },
+  { name: 'Подарки', icon: '🎁', color: '#a855f7', isArchived: false },
+  { name: 'Другой доход', icon: '💰', color: '#84cc16', isArchived: false },
+]
+
+export const DEFAULT_INCOME_CATEGORY_KEYS = ['salary', 'freelance', 'gifts', 'otherIncome'] as const
+
 // Supported currencies
 export const SUPPORTED_CURRENCIES = [
   { code: 'UZS', name: "So'm", symbol: "so'm", flag: '🇺🇿' },

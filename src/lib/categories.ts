@@ -1,13 +1,25 @@
 import type { TFunction } from 'i18next'
-import type { Category } from '@/types'
-import { CATEGORY_COLORS, DEFAULT_CATEGORIES, DEFAULT_CATEGORY_KEYS } from '@/lib/constants'
+import type { Category, CategoryKind } from '@/types'
+import {
+  CATEGORY_COLORS,
+  DEFAULT_CATEGORIES,
+  DEFAULT_CATEGORY_KEYS,
+  DEFAULT_INCOME_CATEGORIES,
+  DEFAULT_INCOME_CATEGORY_KEYS,
+} from '@/lib/constants'
 
 // Default categories are seeded with Russian names; this maps each back to its translation key
-const DEFAULT_NAME_KEYS: Record<string, string> = Object.fromEntries(
-  DEFAULT_CATEGORIES.map((category, index) => [category.name, DEFAULT_CATEGORY_KEYS[index]])
-)
+const DEFAULT_NAME_KEYS: Record<string, string> = Object.fromEntries([
+  ...DEFAULT_CATEGORIES.map((category, index) => [category.name, DEFAULT_CATEGORY_KEYS[index]]),
+  ...DEFAULT_INCOME_CATEGORIES.map((category, index) => [category.name, DEFAULT_INCOME_CATEGORY_KEYS[index]]),
+])
 
-const DEFAULT_ORDER = DEFAULT_CATEGORIES.map((category) => category.name)
+const DEFAULT_ORDER = [...DEFAULT_CATEGORIES, ...DEFAULT_INCOME_CATEGORIES].map((category) => category.name)
+
+// Whether a category is for expenses or for income
+export function getCategoryKind(category: Category): CategoryKind {
+  return category.kind ?? 'expense'
+}
 
 // Name to show for a category: built-in ones follow the UI language, custom ones keep their name
 export function getCategoryName(category: Category | null | undefined, t: TFunction): string {

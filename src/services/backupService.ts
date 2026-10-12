@@ -1,5 +1,5 @@
 import { db } from '@/db/schema'
-import type { Budget, Category, RecurringTransaction, Transaction } from '@/types'
+import type { Account, Budget, Category, RecurringTransaction, Transaction, WishlistItem } from '@/types'
 import { todayDate } from '@/lib/utils'
 
 function downloadFile(filename: string, content: string, mimeType: string): void {
@@ -26,18 +26,20 @@ function csvCell(value: string | number | null): string {
 
 export function exportTransactionsToCSV(
   transactions: Transaction[],
-  getCategoryLabel: (categoryId: string | null) => string
+  getCategoryLabel: (categoryId: string | null) => string,
+  getAccountLabel: (accountId: string | null) => string
 ): void {
-  const headers = ['Date', 'Type', 'Amount', 'Currency', 'Amount (Base)', 'Category', 'Note', 'Payment Method', 'Status']
+  const headers = ['Date', 'Type', 'Amount', 'Currency', 'Amount (Base)', 'Category', 'Account', 'To Account', 'Note', 'Status']
   const rows = transactions.map((t) => [
     t.date,
     t.type,
     t.amount,
     t.currency,
     t.amountInBaseCurrency,
-    getCategoryLabel(t.categoryId),
+    t.type === 'transfer' ? '' : getCategoryLabel(t.categoryId),
+    getAccountLabel(t.accountId),
+    getAccountLabel(t.toAccountId),
     t.note,
-    t.paymentMethod,
     t.status,
   ])
 
@@ -52,25 +54,29 @@ export function exportTransactionsToCSV(
 // ===================================
 interface BackupFile {
   app: 'xarajat'
-  version: 1
+  version: 2
   exportedAt: string
   baseCurrency: string
   transactions: Transaction[]
   categories: Category[]
   budgets: Budget[]
   recurringTransactions: RecurringTransaction[]
+  accounts: Account[]
+  wishlistItems: WishlistItem[]
 }
 
 export async function exportBackup(userId: string, baseCurrency: string): Promise<void> {
   const backup: BackupFile = {
     app: 'xarajat',
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     baseCurrency,
     transactions: await db.transactions.where('userId').equals(userId).toArray(),
     categories: await db.categories.where('userId').equals(userId).toArray(),
     budgets: await db.budgets.where('userId').equals(userId).toArray(),
     recurringTransactions: await db.recurringTransactions.where('userId').equals(userId).toArray(),
+    accounts: await db.accounts.where('userId').equals(userId).toArray(),
+    wishlistItems: await db.wishlistItems.where('userId').equals(userId).toArray(),
   }
   downloadFile(`xarajat_backup_${todayDate()}.json`, JSON.stringify(backup, null, 2), 'application/json')
 }
@@ -80,7 +86,13 @@ const hasId = (record: unknown): boolean =>
 
 function parseBackup(text: string): BackupFile {
   const data = JSON.parse(text)
-  const tables = ['transactions', 'categories', 'budgets', 'recurringTransactions'] as const
+  // Backups made before accounts and the wishlist existed simply lack these two lists;
+  // ensureDefaults() gives their transactions an account after the restore.
+  if (data && typeof data === 'object') {
+    data.accounts ??= []
+    data.wishlistItems ??= []
+  }
+  const tables = ['transactions', 'categories', 'budgets', 'recurringTransactions', 'accounts', 'wishlistItems'] as const
 
   const valid =
     data?.app === 'xarajat' &&
@@ -114,16 +126,22 @@ export async function restoreBackup(
     db.categories,
     db.budgets,
     db.recurringTransactions,
+    db.accounts,
+    db.wishlistItems,
     async () => {
       await db.transactions.where('userId').equals(userId).delete()
       await db.categories.where('userId').equals(userId).delete()
       await db.budgets.where('userId').equals(userId).delete()
       await db.recurringTransactions.where('userId').equals(userId).delete()
+      await db.accounts.where('userId').equals(userId).delete()
+      await db.wishlistItems.where('userId').equals(userId).delete()
 
       await db.transactions.bulkPut(own(backup.transactions))
       await db.categories.bulkPut(own(backup.categories))
       await db.budgets.bulkPut(own(backup.budgets))
       await db.recurringTransactions.bulkPut(own(backup.recurringTransactions))
+      await db.accounts.bulkPut(own(backup.accounts))
+      await db.wishlistItems.bulkPut(own(backup.wishlistItems))
     }
   )
 

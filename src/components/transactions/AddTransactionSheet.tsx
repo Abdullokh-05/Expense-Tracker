@@ -7,13 +7,13 @@ import { useAppStore } from '@/store/appStore'
 import { useCategoryStore } from '@/store/categoryStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { useRecurringStore } from '@/store/recurringStore'
+import { useAccountStore } from '@/store/accountStore'
+import { useConverter, useRatesStore } from '@/store/ratesStore'
 import { suggestCategory } from '@/db/operations'
-import { getConversionRate } from '@/services/currencyApi'
-import { SUPPORTED_CURRENCIES } from '@/lib/constants'
-import { getCategoryName } from '@/lib/categories'
+import { getCategoryKind, getCategoryName } from '@/lib/categories'
 import { advanceByFrequency, formatAmount, roundMoney, todayDate } from '@/lib/utils'
-import { Calendar, FileText, Repeat, ChevronDown, Trash2 } from 'lucide-react'
-import type { PaymentMethod, Transaction, TransactionType, Category, RecurringFrequency } from '@/types'
+import { Calendar, FileText, Repeat, ChevronDown, Trash2, Banknote, CreditCard } from 'lucide-react'
+import type { Account, Transaction, TransactionType, Category, RecurringFrequency } from '@/types'
 import { toast } from '@/components/ui/Toast'
 
 interface AddTransactionSheetProps {
@@ -26,12 +26,48 @@ interface AddTransactionSheetProps {
   onSaved?: () => void
 }
 
-// Rate from the chosen currency to the base currency. Saving waits for it: recording a
-// foreign amount at a made-up rate of 1 would silently corrupt every total.
-type RateState =
-  | { status: 'ready'; value: number }
-  | { status: 'loading' }
-  | { status: 'unavailable' }
+// The account picked last time is offered first next time
+const LAST_ACCOUNT_KEY = 'xarajat-last-account'
+
+const parseAmount = (text: string) => parseFloat(text.replace(/[^0-9.]/g, ''))
+const cleanAmountInput = (text: string) => text.replace(/[^0-9.,]/g, '').replace(',', '.')
+
+interface AccountPickerProps {
+  label: string
+  accounts: Account[]
+  selectedId: string
+  onSelect: (id: string) => void
+}
+
+const AccountPicker: React.FC<AccountPickerProps> = ({ label, accounts, selectedId, onSelect }) => (
+  <div>
+    <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+      {label}
+    </label>
+    <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+      {accounts.map((account) => {
+        const selected = account.id === selectedId
+        return (
+          <button
+            key={account.id}
+            onClick={() => onSelect(account.id)}
+            aria-pressed={selected}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+            style={{
+              background: selected ? 'var(--color-surface)' : 'var(--color-surface-2)',
+              border: selected ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border)',
+              color: selected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+            }}
+          >
+            {account.type === 'cash' ? <Banknote size={14} /> : <CreditCard size={14} />}
+            <span>{account.name}</span>
+            <span style={{ color: 'var(--color-text-muted)' }}>{account.currency}</span>
+          </button>
+        )
+      })}
+    </div>
+  </div>
+)
 
 export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   isOpen,
@@ -47,8 +83,9 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
   // ✅ FIX: Select raw array, filter locally — never call methods in Zustand selectors
   const categories = useCategoryStore((s) => s.categories)
-  // An archived category stays selectable on the transaction that already uses it
-  const activeCategories = categories.filter((c) => !c.isArchived || c.id === transaction?.categoryId)
+  const allAccounts = useAccountStore((s) => s.accounts)
+  const loadRates = useRatesStore((s) => s.loadRates)
+  const convert = useConverter()
 
   const addTransaction = useTransactionStore((s) => s.addTransaction)
   const editTransaction = useTransactionStore((s) => s.editTransaction)
@@ -57,13 +94,13 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
   const [type, setType] = useState<TransactionType>(prefilledType)
   const [amount, setAmount] = useState('')
+  const [accountId, setAccountId] = useState('')
+  const [toAccountId, setToAccountId] = useState('')
+  // Typed only when the two accounts of a transfer are in different currencies
+  const [toAmount, setToAmount] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [date, setDate] = useState(todayDate())
   const [note, setNote] = useState('')
-  const [currency, setCurrency] = useState(settings.baseCurrency)
-  // Last rate fetched, tagged with the currency pair it is for so a stale one is never used
-  const [fetchedRate, setFetchedRate] = useState<{ pair: string; value: number | null } | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
   const [showExtra, setShowExtra] = useState(false)
 
   const [isRecurring, setIsRecurring] = useState(false)
@@ -76,15 +113,30 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   // Synchronous guard: a double tap fires twice before isLoading has re-rendered
   const isSaving = useRef(false)
 
+  // An archived account or category stays selectable on the transaction that already uses it
+  const accounts = allAccounts.filter(
+    (a) => !a.isArchived || a.id === transaction?.accountId || a.id === transaction?.toAccountId
+  )
+  const isTransfer = type === 'transfer'
+  const shownCategories = categories.filter(
+    (c) => getCategoryKind(c) === type && (!c.isArchived || c.id === transaction?.categoryId)
+  )
+
   useEffect(() => {
     if (isOpen) {
+      const active = allAccounts.filter((a) => !a.isArchived)
+      const remembered = localStorage.getItem(LAST_ACCOUNT_KEY)
+      const firstAccount =
+        transaction?.accountId ?? active.find((a) => a.id === remembered)?.id ?? active[0]?.id ?? ''
+
       setType(transaction?.type ?? prefilledType)
       setAmount(transaction ? String(transaction.amount) : '')
+      setAccountId(firstAccount)
+      setToAccountId(transaction?.toAccountId ?? active.find((a) => a.id !== firstAccount)?.id ?? '')
+      setToAmount(transaction?.toAmount != null ? String(transaction.toAmount) : '')
       setSelectedCategoryId(transaction?.categoryId ?? prefilledCategory ?? '')
       setDate(transaction?.date ?? todayDate())
       setNote(transaction?.note ?? '')
-      setCurrency(transaction?.currency ?? settings.baseCurrency)
-      setPaymentMethod(transaction?.paymentMethod ?? null)
       setIsRecurring(false)
       setFrequency('monthly')
       setAutoCreate(true)
@@ -92,50 +144,60 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       // Editing shows every field straight away
       setShowExtra(Boolean(transaction))
       setShowDeleteConfirm(false)
+      // Foreign-currency accounts need rates; fetch them if this session hasn't yet
+      if (!useRatesStore.getState().rates) loadRates()
     }
-  }, [isOpen, transaction, prefilledType, prefilledCategory, settings.baseCurrency])
+    // Deliberately not re-run when the account list changes: that would wipe what was typed
+  }, [isOpen, transaction, prefilledType, prefilledCategory]) // oxlint-disable-line react-hooks/exhaustive-deps
 
-  const ratePair = `${currency}>${settings.baseCurrency}`
-  // Editing without changing the currency keeps the rate the transaction was recorded at
-  const keepsRecordedRate = Boolean(transaction) && currency === transaction?.currency
-  const needsFetchedRate = currency !== settings.baseCurrency && !keepsRecordedRate
+  const account = accounts.find((a) => a.id === accountId)
+  const toAccount = accounts.find((a) => a.id === toAccountId)
+  const currency = account?.currency ?? settings.baseCurrency
 
-  let rate: RateState
-  if (currency === settings.baseCurrency) {
-    rate = { status: 'ready', value: 1 }
-  } else if (transaction && keepsRecordedRate) {
-    rate = { status: 'ready', value: transaction.exchangeRate }
-  } else if (fetchedRate?.pair !== ratePair) {
-    rate = { status: 'loading' }
-  } else {
-    rate = fetchedRate.value === null ? { status: 'unavailable' } : { status: 'ready', value: fetchedRate.value }
+  // Rate from the account's currency to the base currency. Saving needs a real one: recording
+  // a foreign amount at a made-up rate of 1 would silently corrupt every total. Editing
+  // without changing the currency keeps the rate the transaction was recorded at.
+  const rate: number | null =
+    currency === settings.baseCurrency
+      ? 1
+      : transaction && transaction.currency === currency
+        ? transaction.exchangeRate
+        : convert(1, currency, settings.baseCurrency)
+
+  const parsedAmount = parseAmount(amount)
+  const hasValidAmount = !isNaN(parsedAmount) && parsedAmount > 0
+
+  // What arrives in the receiving account of a transfer: the same amount, or when the
+  // currencies differ, what was typed, falling back to today's rate
+  const crossCurrency = isTransfer && Boolean(toAccount) && toAccount!.currency !== currency
+  const convertedToAmount =
+    crossCurrency && hasValidAmount ? convert(parsedAmount, currency, toAccount!.currency) : null
+  const typedToAmount = parseAmount(toAmount)
+  const receivedAmount: number | null = !crossCurrency
+    ? parsedAmount
+    : !isNaN(typedToAmount) && typedToAmount > 0
+      ? typedToAmount
+      : convertedToAmount === null
+        ? null
+        : roundMoney(convertedToAmount, toAccount!.currency)
+
+  const handleTypeChange = (next: TransactionType) => {
+    setType(next)
+    // A category belongs to one kind; don't carry an expense category over to an income
+    const current = categories.find((c) => c.id === selectedCategoryId)
+    if (current && getCategoryKind(current) !== next) setSelectedCategoryId('')
   }
-
-  useEffect(() => {
-    if (!isOpen || !needsFetchedRate) return
-
-    let active = true
-    getConversionRate(currency, settings.baseCurrency)
-      .catch(() => null)
-      .then((value) => {
-        if (active) setFetchedRate({ pair: ratePair, value })
-      })
-    return () => { active = false }
-  }, [isOpen, needsFetchedRate, currency, settings.baseCurrency, ratePair])
 
   const handleNoteChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setNote(val)
-    if (val.trim().length > 2) {
+    if (val.trim().length > 2 && !isTransfer) {
       const suggested = await suggestCategory(settings.userId, val)
-      setSuggestedCat(suggested)
+      setSuggestedCat(suggested && getCategoryKind(suggested) === type ? suggested : null)
     } else {
       setSuggestedCat(null)
     }
   }
-
-  const parsedAmount = parseFloat(amount.replace(/[^0-9.]/g, ''))
-  const hasValidAmount = !isNaN(parsedAmount) && parsedAmount > 0
 
   const handleSave = async (catId?: string) => {
     if (isSaving.current) return
@@ -145,12 +207,25 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       toast.error(t('transaction.amountRequired'))
       return
     }
-    if (!finalCategoryId) {
+    if (!account) {
+      toast.error(t('transaction.accountRequired'))
+      return
+    }
+    if (isTransfer) {
+      if (!toAccount || toAccount.id === account.id) {
+        toast.error(t('transaction.transferAccountsRequired'))
+        return
+      }
+      if (receivedAmount === null) {
+        toast.error(t('transaction.receivedAmountRequired'))
+        return
+      }
+    } else if (!finalCategoryId) {
       toast.error(t('transaction.categoryRequired'))
       return
     }
-    if (rate.status !== 'ready') {
-      toast.error(t(rate.status === 'loading' ? 'transaction.rateLoading' : 'transaction.rateUnavailable'))
+    if (rate === null) {
+      toast.error(t('transaction.rateUnavailable'))
       return
     }
 
@@ -161,13 +236,16 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         type,
         amount: parsedAmount,
         currency,
-        amountInBaseCurrency: roundMoney(parsedAmount * rate.value, settings.baseCurrency),
-        exchangeRate: rate.value,
-        categoryId: finalCategoryId,
+        amountInBaseCurrency: roundMoney(parsedAmount * rate, settings.baseCurrency),
+        exchangeRate: rate,
+        categoryId: isTransfer ? null : finalCategoryId,
+        accountId: account.id,
+        toAccountId: isTransfer ? toAccount!.id : null,
+        toAmount: isTransfer ? receivedAmount : null,
         date,
         note: note.trim() || null,
         noteOriginal: note.trim() || null,
-        paymentMethod,
+        paymentMethod: account.type,
       }
 
       if (transaction) {
@@ -175,13 +253,14 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       } else {
         let recurringTransactionId: string | null = null
 
-        if (isRecurring) {
+        if (isRecurring && type !== 'transfer') {
           const rt = await addRecurringTransaction({
             userId: settings.userId,
             type,
             amount: parsedAmount,
             currency,
             categoryId: finalCategoryId,
+            accountId: account.id,
             note: note.trim() || null,
             frequency,
             nextRunDate: advanceByFrequency(date, frequency),
@@ -199,6 +278,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
           translationConfidence: null,
           recurringTransactionId,
         })
+        localStorage.setItem(LAST_ACCOUNT_KEY, account.id)
       }
 
       toast.success(t('settings.saved'))
@@ -245,6 +325,16 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     cursor: 'pointer',
   }
 
+  // A transfer stays a transfer when edited, and the others can't become one
+  const typeOptions: TransactionType[] = !isEditing
+    ? ['expense', 'income', 'transfer']
+    : transaction?.type === 'transfer' ? [] : ['expense', 'income']
+
+  const typeLabel = (tx: TransactionType) =>
+    tx === 'expense' ? t('transaction.expense') : tx === 'income' ? t('transaction.income') : t('transaction.transfer')
+  const typeColor = (tx: TransactionType) =>
+    tx === 'expense' ? 'var(--color-expense)' : tx === 'income' ? 'var(--color-income)' : 'var(--color-text-primary)'
+
   return (
     <>
       <BottomSheet
@@ -255,75 +345,87 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         <div className="space-y-4">
 
           {/* Type toggle */}
-          <div className="flex p-1 rounded-xl gap-1" style={{ background: 'var(--color-surface-2)' }}>
-            {(['expense', 'income'] as TransactionType[]).map((tx) => (
-              <button
-                key={tx}
-                onClick={() => setType(tx)}
-                className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-150"
-                style={{
-                  background: type === tx ? 'var(--color-surface)' : 'transparent',
-                  color: type === tx
-                    ? tx === 'expense' ? 'var(--color-expense)' : 'var(--color-income)'
-                    : 'var(--color-text-muted)',
-                  boxShadow: type === tx ? 'var(--shadow-sm)' : 'none',
-                }}
-              >
-                {tx === 'expense' ? t('transaction.expense') : t('transaction.income')}
-              </button>
-            ))}
-          </div>
-
-          {/* Amount + Currency */}
-          <div>
-            <div className="flex gap-2 items-start">
-              <div className="flex-1">
-                <Input
-                  id="amount-input"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.'))}
-                  className="text-right text-2xl font-bold tracking-wide"
-                  leftIcon={
-                    <span style={{ color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '0.875rem' }}>
-                      {currency}
-                    </span>
-                  }
-                  autoFocus
-                />
-              </div>
-              <div className="relative" style={{ flexShrink: 0 }}>
-                <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  style={{ ...selectSty, width: '88px' }}
-                  aria-label={t('settings.currency')}
+          {typeOptions.length > 0 && (
+            <div className="flex p-1 rounded-xl gap-1" style={{ background: 'var(--color-surface-2)' }}>
+              {typeOptions.map((tx) => (
+                <button
+                  key={tx}
+                  onClick={() => handleTypeChange(tx)}
+                  className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-150"
+                  style={{
+                    background: type === tx ? 'var(--color-surface)' : 'transparent',
+                    color: type === tx ? typeColor(tx) : 'var(--color-text-muted)',
+                    boxShadow: type === tx ? 'var(--shadow-sm)' : 'none',
+                  }}
                 >
-                  {SUPPORTED_CURRENCIES.map((c) => (
-                    <option key={c.code} value={c.code}>{c.code}</option>
-                  ))}
-                </select>
-                <ChevronDown size={13} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
-              </div>
+                  {typeLabel(tx)}
+                </button>
+              ))}
             </div>
+          )}
+
+          {/* Amount, in the currency of the chosen account */}
+          <div>
+            <Input
+              id="amount-input"
+              type="text"
+              inputMode="decimal"
+              placeholder="0"
+              value={amount}
+              onChange={(e) => setAmount(cleanAmountInput(e.target.value))}
+              className="text-right text-2xl font-bold tracking-wide pl-14"
+              leftIcon={
+                <span style={{ color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '0.875rem' }}>
+                  {currency}
+                </span>
+              }
+              autoFocus
+            />
 
             {/* What a foreign-currency amount will count as in the base currency */}
             {currency !== settings.baseCurrency && (
               <p
                 className="text-xs mt-1.5 text-right amount-display"
-                style={{ color: rate.status === 'unavailable' ? 'var(--color-expense)' : 'var(--color-text-muted)' }}
+                style={{ color: rate === null ? 'var(--color-expense)' : 'var(--color-text-muted)' }}
               >
-                {rate.status === 'ready' && `≈ ${formatAmount(hasValidAmount ? parsedAmount * rate.value : 0, settings.baseCurrency)}`}
-                {rate.status === 'loading' && t('transaction.rateLoading')}
-                {rate.status === 'unavailable' && t('transaction.rateUnavailable')}
+                {rate === null
+                  ? t('transaction.rateUnavailable')
+                  : `≈ ${formatAmount(hasValidAmount ? parsedAmount * rate : 0, settings.baseCurrency)}`}
               </p>
             )}
           </div>
 
+          <AccountPicker
+            label={isTransfer ? t('transaction.fromAccount') : t('transaction.account')}
+            accounts={accounts}
+            selectedId={accountId}
+            onSelect={setAccountId}
+          />
+
+          {isTransfer && (
+            <>
+              <AccountPicker
+                label={t('transaction.toAccount')}
+                accounts={accounts.filter((a) => a.id !== accountId)}
+                selectedId={toAccountId}
+                onSelect={setToAccountId}
+              />
+              {crossCurrency && (
+                <Input
+                  id="to-amount-input"
+                  type="text"
+                  inputMode="decimal"
+                  label={t('transaction.receivedAmount', { currency: toAccount!.currency })}
+                  placeholder={convertedToAmount === null ? '0' : String(roundMoney(convertedToAmount, toAccount!.currency))}
+                  value={toAmount}
+                  onChange={(e) => setToAmount(cleanAmountInput(e.target.value))}
+                />
+              )}
+            </>
+          )}
+
           {/* Suggested category */}
-          {suggestedCat && !selectedCategoryId && (
+          {!isTransfer && suggestedCat && !selectedCategoryId && (
             <button
               onClick={() => handleCategorySelect(suggestedCat.id)}
               className="w-full flex items-center justify-between p-3 rounded-xl transition-all"
@@ -343,37 +445,39 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
           )}
 
           {/* Category grid */}
-          <div>
-            <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-              {t('transaction.category')}
-            </label>
-            <div className="grid grid-cols-4 gap-2 max-h-[180px] overflow-y-auto hide-scrollbar">
-              {activeCategories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => handleCategorySelect(cat.id)}
-                  className="flex flex-col items-center gap-1 p-2.5 rounded-xl transition-all duration-150"
-                  style={{
-                    background: selectedCategoryId === cat.id
-                      ? `${cat.color}20`
-                      : 'var(--color-surface-2)',
-                    border: selectedCategoryId === cat.id
-                      ? `1.5px solid ${cat.color || 'var(--color-accent)'}`
-                      : '1.5px solid var(--color-border)',
-                    transform: selectedCategoryId === cat.id ? 'scale(1.05)' : 'scale(1)',
-                  }}
-                >
-                  <span className="text-xl leading-none">{cat.icon}</span>
-                  <span
-                    className="text-[10px] font-medium truncate w-full text-center leading-tight"
-                    style={{ color: 'var(--color-text-primary)' }}
+          {!isTransfer && (
+            <div>
+              <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                {type === 'income' ? t('transaction.incomeSource') : t('transaction.category')}
+              </label>
+              <div className="grid grid-cols-4 gap-2 max-h-[180px] overflow-y-auto hide-scrollbar">
+                {shownCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => handleCategorySelect(cat.id)}
+                    className="flex flex-col items-center gap-1 p-2.5 rounded-xl transition-all duration-150"
+                    style={{
+                      background: selectedCategoryId === cat.id
+                        ? `${cat.color}20`
+                        : 'var(--color-surface-2)',
+                      border: selectedCategoryId === cat.id
+                        ? `1.5px solid ${cat.color || 'var(--color-accent)'}`
+                        : '1.5px solid var(--color-border)',
+                      transform: selectedCategoryId === cat.id ? 'scale(1.05)' : 'scale(1)',
+                    }}
                   >
-                    {getCategoryName(cat, t)}
-                  </span>
-                </button>
-              ))}
+                    <span className="text-xl leading-none">{cat.icon}</span>
+                    <span
+                      className="text-[10px] font-medium truncate w-full text-center leading-tight"
+                      style={{ color: 'var(--color-text-primary)' }}
+                    >
+                      {getCategoryName(cat, t)}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Expand extras */}
           <button
@@ -395,30 +499,16 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                 leftIcon={<FileText size={16} />}
               />
 
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  id="date-input"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  leftIcon={<Calendar size={16} />}
-                />
-                <div className="relative">
-                  <select
-                    value={paymentMethod || ''}
-                    onChange={(e) => setPaymentMethod((e.target.value as PaymentMethod) || null)}
-                    style={selectSty}
-                  >
-                    <option value="">{t('transaction.paymentMethod')}</option>
-                    <option value="cash">{t('transaction.cash')}</option>
-                    <option value="card">{t('transaction.card')}</option>
-                  </select>
-                  <ChevronDown size={13} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
-                </div>
-              </div>
+              <Input
+                id="date-input"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                leftIcon={<Calendar size={16} />}
+              />
 
               {/* Recurring (only when adding: an existing transaction is a single occurrence) */}
-              {!isEditing && (
+              {!isEditing && !isTransfer && (
                 <div className="rounded-xl p-3 space-y-3" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>

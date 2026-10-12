@@ -1,6 +1,12 @@
 // Core types for Xarajat PWA
 
-export type TransactionType = 'expense' | 'income'
+// A transfer moves money between two accounts; it is neither income nor an expense
+export type TransactionType = 'expense' | 'income' | 'transfer'
+export type AccountType = 'cash' | 'card'
+export type CategoryKind = 'expense' | 'income'
+// 3 is the most important
+export type WishImportance = 1 | 2 | 3
+export type WishStatus = 'wanted' | 'bought'
 export type TransactionStatus = 'confirmed' | 'pending' | 'skipped'
 export type PaymentMethod = 'cash' | 'card'
 export type RecurringFrequency = 'weekly' | 'monthly' | 'yearly'
@@ -23,6 +29,11 @@ export interface Transaction {
   amountInBaseCurrency: number
   exchangeRate: number
   categoryId: string | null
+  // Account the money left (expense, transfer) or entered (income); the amount is in its currency
+  accountId: string | null
+  // Transfers only: the receiving account, and the amount that arrived in its currency
+  toAccountId: string | null
+  toAmount: number | null
   date: string // ISO date string YYYY-MM-DD
   note: string | null
   noteOriginal: string | null
@@ -45,8 +56,49 @@ export interface Category {
   name: string
   icon: string
   color: string
+  // Missing on categories created before income categories existed, which are all expense ones
+  kind?: CategoryKind
   isArchived: boolean
   isDefault?: boolean // built-in categories
+  createdAt: string
+  updatedAt: string
+  synced?: boolean
+}
+
+// =====================
+// Account
+// =====================
+export interface Account {
+  id: string
+  userId: string
+  name: string
+  type: AccountType
+  currency: string
+  // What the account held before the first transaction recorded here
+  startingBalance: number
+  // Whether its balance counts towards the total on the home screen
+  includeInTotal: boolean
+  // The one account whose money is being saved up for the wishlist
+  isWishlistFund: boolean
+  isArchived: boolean
+  createdAt: string
+  updatedAt: string
+  synced?: boolean
+}
+
+// =====================
+// Wishlist
+// =====================
+export interface WishlistItem {
+  id: string
+  userId: string
+  name: string
+  price: number
+  currency: string
+  importance: WishImportance
+  link: string | null
+  status: WishStatus
+  boughtAt: string | null // ISO date string YYYY-MM-DD
   createdAt: string
   updatedAt: string
   synced?: boolean
@@ -76,6 +128,7 @@ export interface RecurringTransaction {
   amount: number
   currency: string
   categoryId: string | null
+  accountId: string | null
   note: string | null
   frequency: RecurringFrequency
   nextRunDate: string
@@ -123,7 +176,13 @@ export interface PushSubscriptionRecord {
 // Sync Queue
 // =====================
 export type SyncOperation = 'create' | 'update' | 'delete'
-export type SyncTable = 'transactions' | 'categories' | 'budgets' | 'recurring_transactions'
+export type SyncTable =
+  | 'transactions'
+  | 'categories'
+  | 'budgets'
+  | 'recurring_transactions'
+  | 'accounts'
+  | 'wishlist_items'
 
 export interface SyncQueueItem {
   id: string

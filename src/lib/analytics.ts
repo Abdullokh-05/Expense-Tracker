@@ -13,25 +13,27 @@ export function confirmedInRange(transactions: Transaction[], range: DateRange):
   )
 }
 
-// Total of one transaction type, in the base currency
+// Total of one transaction type, in the base currency. Transfers are neither income nor
+// expense, so asking for either never counts them.
 export function sumByType(transactions: Transaction[], type: TransactionType): number {
   return transactions
     .filter((txn) => txn.type === type)
     .reduce((sum, txn) => sum + txn.amountInBaseCurrency, 0)
 }
 
-// Expenses grouped by category, biggest first. Transactions without a (known) category are
-// grouped under "Other" rather than dropped, so the shares always add up to the total.
+// Expenses (or income) grouped by category, biggest first. Transactions without a (known)
+// category are grouped under "Other" rather than dropped, so the shares always add up to the total.
 export function getCategorySpending(
   transactions: Transaction[],
   categories: Category[],
-  t: TFunction
+  t: TFunction,
+  type: 'expense' | 'income' = 'expense'
 ): CategorySpending[] {
   const totals = new Map<string, { amount: number; count: number }>()
   let total = 0
 
   for (const txn of transactions) {
-    if (txn.type !== 'expense') continue
+    if (txn.type !== type) continue
     const known = txn.categoryId && categories.some((c) => c.id === txn.categoryId)
     const key = known ? txn.categoryId! : UNCATEGORIZED_ID
     const entry = totals.get(key) ?? { amount: 0, count: 0 }
@@ -63,15 +65,16 @@ export interface TrendPoint {
   amount: number
 }
 
-// Expenses over time for a chart: one bar per month for a year, otherwise one bar per day.
-// Every bucket in the range is present, including the ones with no spending.
+// Expenses (or income) over time for a chart: one bar per month for a year, otherwise one bar
+// per day. Every bucket in the range is present, including the ones with nothing in them.
 export function getSpendingTrend(
   transactions: Transaction[],
   period: 'week' | 'month' | 'year',
   range: DateRange,
-  locale: string
+  locale: string,
+  type: 'expense' | 'income' = 'expense'
 ): TrendPoint[] {
-  const expenses = transactions.filter((txn) => txn.type === 'expense')
+  const expenses = transactions.filter((txn) => txn.type === type)
 
   if (period === 'year') {
     const year = range.from.slice(0, 4)
