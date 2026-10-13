@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/store/appStore'
 import { useCategoryStore } from '@/store/categoryStore'
+import { useAccountStore } from '@/store/accountStore'
 import { useRecurringStore } from '@/store/recurringStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { reloadAllData } from '@/store/reloadAll'
-import { CATEGORY_COLORS, SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES } from '@/lib/constants'
-import { getCategoryName, pickCategoryColor } from '@/lib/categories'
+import { SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES } from '@/lib/constants'
+import { getCategoryName } from '@/lib/categories'
 import { applyTheme } from '@/lib/theme'
 import { formatAmount, formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -20,15 +21,11 @@ import { exportBackup, exportTransactionsToCSV, restoreBackup } from '@/services
 import { convertBaseCurrency } from '@/services/currencyApi'
 import {
   Smartphone,
-  FolderOpen,
   Trash2,
   Globe,
   DollarSign,
   Sun,
-  Brain,
   ChevronRight,
-  Plus,
-  Archive,
   Repeat,
   Clock,
   Download,
@@ -46,12 +43,11 @@ import {
 import { toast } from '@/components/ui/Toast'
 import type { AppLanguage, AppTheme } from '@/types'
 
-const CATEGORY_ICON_CHOICES = ['🍕', '🚗', '🏠', '🎮', '💊', '📱', '✈️', '🛍️', '📚', '🎵', '🐾', '💡']
-
 export const SettingsPage: React.FC = () => {
   const { t, i18n } = useTranslation()
-  const { settings, setCurrency, setLanguage, setTheme, setAIEnabled, setUserId } = useAppStore()
-  const { categories, addCategory, archiveCategoryById } = useCategoryStore()
+  const { settings, setCurrency, setLanguage, setTheme, setUserId } = useAppStore()
+  const categories = useCategoryStore((s) => s.categories)
+  const accounts = useAccountStore((s) => s.accounts)
   const {
     recurringTransactions,
     toggleRecurringTransactionActive,
@@ -60,9 +56,7 @@ export const SettingsPage: React.FC = () => {
   const { transactions, editTransaction } = useTransactionStore()
 
   // Modal controls
-  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [showAddCategory, setShowAddCategory] = useState(false)
   const [showShortcutInfo, setShowShortcutInfo] = useState(false)
   const [showRecurringManager, setShowRecurringManager] = useState(false)
   const [showPendingManager, setShowPendingManager] = useState(false)
@@ -81,11 +75,6 @@ export const SettingsPage: React.FC = () => {
   const [isConverting, setIsConverting] = useState(false)
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
   const restoreInputRef = useRef<HTMLInputElement>(null)
-
-  // Category form state
-  const [newCatName, setNewCatName] = useState('')
-  const [newCatIcon, setNewCatIcon] = useState(CATEGORY_ICON_CHOICES[0])
-  const [newCatColor, setNewCatColor] = useState(CATEGORY_COLORS[0])
 
   const loadData = useCallback(async () => {
     // Load sync queue count
@@ -189,8 +178,10 @@ export const SettingsPage: React.FC = () => {
       toast.info(t('settings.nothingToExport'))
       return
     }
-    exportTransactionsToCSV(transactions, (categoryId) =>
-      getCategoryName(categories.find((c) => c.id === categoryId), t)
+    exportTransactionsToCSV(
+      transactions,
+      (categoryId) => getCategoryName(categories.find((c) => c.id === categoryId), t),
+      (accountId) => accounts.find((a) => a.id === accountId)?.name ?? ''
     )
     toast.success(t('settings.exportDone'))
   }
@@ -234,35 +225,6 @@ export const SettingsPage: React.FC = () => {
     }
   }
 
-  const handleArchiveCategory = async (id: string) => {
-    try {
-      await archiveCategoryById(id)
-      toast.success(t('categories.archived'))
-    } catch {
-      toast.error(t('common.error'))
-    }
-  }
-
-  const handleOpenAddCategory = () => {
-    setNewCatName('')
-    setNewCatColor(pickCategoryColor(categories))
-    setShowAddCategory(true)
-  }
-
-  const handleAddCategory = async () => {
-    if (!newCatName.trim()) {
-      toast.error(t('categories.nameRequired'))
-      return
-    }
-    try {
-      await addCategory({ userId: settings.userId, name: newCatName.trim(), icon: newCatIcon, color: newCatColor, isArchived: false })
-      setShowAddCategory(false)
-      toast.success(t('categories.added'))
-    } catch {
-      toast.error(t('common.error'))
-    }
-  }
-
   const handleResolvePending = async (id: string, status: 'confirmed' | 'skipped') => {
     try {
       await editTransaction(id, { status })
@@ -287,10 +249,13 @@ export const SettingsPage: React.FC = () => {
       await db.categories.clear()
       await db.budgets.clear()
       await db.recurringTransactions.clear()
+      await db.accounts.clear()
+      await db.wishlistItems.clear()
       await db.chatMessages.clear()
       await db.aiInsights.clear()
       await db.syncQueue.clear()
-      // A fresh start still needs categories, or nothing new could be added
+      // A fresh start still needs categories, or nothing new could be added. Accounts and
+      // income categories are re-created by ensureDefaults() when the page reloads.
       await seedDefaultCategories(settings.userId)
 
       window.location.reload()
@@ -304,7 +269,6 @@ export const SettingsPage: React.FC = () => {
     applyTheme(newTheme)
   }
 
-  const activeCategories = categories.filter(c => !c.isArchived)
   const pendingTransactions = transactions.filter((txn) => txn.status === 'pending')
 
   return (
@@ -531,17 +495,6 @@ export const SettingsPage: React.FC = () => {
           </h2>
 
           <button
-            onClick={() => setShowCategoryManager(true)}
-            className="w-full flex items-center justify-between text-left group"
-          >
-            <div className="flex items-center gap-3">
-              <FolderOpen size={18} className="text-[var(--color-text-muted)]" />
-              <span className="text-sm font-semibold">{t('settings.categories')}</span>
-            </div>
-            <ChevronRight size={18} className="text-[var(--color-text-muted)]" />
-          </button>
-
-          <button
             onClick={() => setShowRecurringManager(true)}
             className="w-full flex items-center justify-between text-left group"
           >
@@ -587,26 +540,6 @@ export const SettingsPage: React.FC = () => {
             </div>
             <ChevronRight size={18} className="text-[var(--color-text-muted)]" />
           </button>
-        </div>
-
-        {/* Section: AI Privacy Toggle */}
-        <div className="card p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Brain size={18} className="text-[var(--color-text-muted)]" />
-              <span className="text-sm font-semibold">{t('settings.aiFeatures')}</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={settings.aiEnabled}
-              onChange={(e) => setAIEnabled(e.target.checked)}
-              className="w-4 h-4 rounded border-[var(--color-border)]"
-              aria-label={t('settings.aiFeatures')}
-            />
-          </div>
-          <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-            {t('settings.aiPrivacyNote')}
-          </p>
         </div>
 
         {/* Section: Danger Zone */}
@@ -663,100 +596,6 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       </Modal>
-
-      {/* Category Manager Sheet */}
-      <BottomSheet
-        isOpen={showCategoryManager}
-        onClose={() => setShowCategoryManager(false)}
-        title={t('settings.categories')}
-      >
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
-              {t('categories.activeCount', { count: activeCategories.length })}
-            </span>
-            <Button size="sm" onClick={handleOpenAddCategory}>
-              <Plus size={14} /> {t('common.add')}
-            </Button>
-          </div>
-
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {activeCategories.map((c) => (
-              <div key={c.id} className="flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
-                  <span className="text-xl">{c.icon}</span>
-                  <span className="text-sm font-semibold truncate">{getCategoryName(c, t)}</span>
-                </div>
-                {!c.isDefault && (
-                  <button
-                    onClick={() => handleArchiveCategory(c.id)}
-                    className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-expense)] rounded-lg"
-                    aria-label={t('categories.archive')}
-                    title={t('categories.archive')}
-                  >
-                    <Archive size={16} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </BottomSheet>
-
-      {/* Add Category Sheet */}
-      <BottomSheet
-        isOpen={showAddCategory}
-        onClose={() => setShowAddCategory(false)}
-        title={t('categories.newTitle')}
-      >
-        <div className="space-y-4">
-          <Input
-            id="new-cat-name"
-            label={t('categories.name')}
-            placeholder={t('categories.namePlaceholder')}
-            value={newCatName}
-            onChange={(e) => setNewCatName(e.target.value)}
-          />
-          <div>
-            <label className="text-xs font-semibold text-[var(--color-text-muted)] mb-2 block">{t('categories.icon')}</label>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORY_ICON_CHOICES.map(emoji => (
-                <button
-                  key={emoji}
-                  onClick={() => setNewCatIcon(emoji)}
-                  className={`text-xl p-2 rounded-xl border transition-all ${newCatIcon === emoji ? 'border-[var(--color-accent)] bg-[var(--color-surface-2)]' : 'border-[var(--color-border)]'}`}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-[var(--color-text-muted)] mb-2 block">{t('categories.color')}</label>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORY_COLORS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setNewCatColor(color)}
-                  className="w-7 h-7 rounded-full transition-transform"
-                  style={{
-                    backgroundColor: color,
-                    transform: newCatColor === color ? 'scale(1.15)' : 'scale(1)',
-                    boxShadow: newCatColor === color ? '0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-text-primary)' : 'none',
-                  }}
-                  aria-label={color}
-                  aria-pressed={newCatColor === color}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setShowAddCategory(false)}>{t('common.cancel')}</Button>
-            <Button id="add-category-btn" fullWidth onClick={handleAddCategory}>{t('common.add')}</Button>
-          </div>
-        </div>
-      </BottomSheet>
 
       {/* Recurring Manager Sheet */}
       <BottomSheet

@@ -2,18 +2,17 @@ import React, { useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { OnboardingPage } from '@/pages/Onboarding/OnboardingPage'
-import { DashboardPage } from '@/pages/Dashboard/DashboardPage'
-import { HistoryPage } from '@/pages/History/HistoryPage'
-import { AIChatPage } from '@/pages/AIChat/AIChatPage'
-import { ReportsPage } from '@/pages/Reports/ReportsPage'
+import { HomePage } from '@/pages/Home/HomePage'
+import { BreakdownPage } from '@/pages/Breakdown/BreakdownPage'
+import { AccountsPage } from '@/pages/Accounts/AccountsPage'
+import { WishlistPage } from '@/pages/Wishlist/WishlistPage'
 import { SettingsPage } from '@/pages/Settings/SettingsPage'
-import { BudgetsPage } from '@/pages/Budgets/BudgetsPage'
 import { useAppStore } from '@/store/appStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { useRecurringStore } from '@/store/recurringStore'
 import { reloadAllData } from '@/store/reloadAll'
 import { processRecurringTransactions } from '@/services/recurringProcessor'
-import { fetchExchangeRates } from '@/services/currencyApi'
+import { useRatesStore } from '@/store/ratesStore'
 
 export const App: React.FC = () => {
   const { settings, setOnline } = useAppStore()
@@ -41,8 +40,9 @@ export const App: React.FC = () => {
       await reloadAllData()
 
       const { baseCurrency } = useAppStore.getState().settings
-      // Keep rates cached so foreign-currency entries still convert while offline
-      fetchExchangeRates().catch((err) => console.error(err))
+      // Rates turn foreign-currency accounts and wishes into the base currency; loading them
+      // here also keeps a cached copy for when the app is offline
+      await useRatesStore.getState().loadRates()
 
       const count = await processRecurringTransactions(settings.userId, baseCurrency)
       if (count > 0) {
@@ -74,11 +74,10 @@ export const App: React.FC = () => {
     <Routes>
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route element={<AppShell />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/history" element={<HistoryPage />} />
-        <Route path="/ai-chat" element={<AIChatPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/budgets" element={<BudgetsPage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/breakdown/:type" element={<BreakdownPage />} />
+        <Route path="/accounts" element={<AccountsPage />} />
+        <Route path="/wishlist" element={<WishlistPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         {/* Deep link redirect fallback */}
         <Route path="/add" element={<Navigate to="/?quick=true" replace />} />

@@ -121,7 +121,7 @@ export const OnboardingPage: React.FC = () => {
             <div className="grid grid-cols-3 gap-3">
               {[
                 { emoji: '📊', label: t('onboarding.featureCharts') || 'Графики' },
-                { emoji: '🤖', label: t('onboarding.featureAI') || 'ИИ-советник' },
+                { emoji: '🎁', label: t('onboarding.featureWishlist') },
                 { emoji: '🔒', label: t('onboarding.featurePrivacy') || 'Офлайн' },
               ].map((f) => (
                 <div

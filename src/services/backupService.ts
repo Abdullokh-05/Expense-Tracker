@@ -122,12 +122,7 @@ export async function restoreBackup(
 
   await db.transaction(
     'rw',
-    db.transactions,
-    db.categories,
-    db.budgets,
-    db.recurringTransactions,
-    db.accounts,
-    db.wishlistItems,
+    [db.transactions, db.categories, db.budgets, db.recurringTransactions, db.accounts, db.wishlistItems],
     async () => {
       await db.transactions.where('userId').equals(userId).delete()
       await db.categories.where('userId').equals(userId).delete()

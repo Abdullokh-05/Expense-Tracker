@@ -5,7 +5,7 @@ import { ToastContainer } from '@/components/ui/Toast'
 import { IOSInstallPrompt } from './IOSInstallPrompt'
 import { useAppStore } from '@/store/appStore'
 import { applyTheme, isDarkTheme } from '@/lib/theme'
-import { WifiOff, Home, History, MessageSquare, BarChart2, Settings, Sun, Moon, Sparkles } from 'lucide-react'
+import { WifiOff, Home, Wallet, Heart, Settings, Sun, Moon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AppTheme } from '@/types'
 
@@ -32,10 +32,8 @@ export const AppShell: React.FC = () => {
 
   const NAV_ITEMS = [
     { to: '/', icon: Home, labelKey: 'nav.home' },
-    { to: '/history', icon: History, labelKey: 'nav.history' },
-    { to: '/ai-chat', icon: MessageSquare, labelKey: 'nav.aiChat' },
-    { to: '/reports', icon: BarChart2, labelKey: 'nav.reports' },
-    { to: '/budgets', icon: Sparkles, labelKey: 'budgets.title' },
+    { to: '/accounts', icon: Wallet, labelKey: 'nav.accounts' },
+    { to: '/wishlist', icon: Heart, labelKey: 'nav.wishlist' },
     { to: '/settings', icon: Settings, labelKey: 'nav.settings' },
   ]
 

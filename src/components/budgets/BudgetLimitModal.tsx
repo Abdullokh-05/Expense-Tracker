@@ -26,7 +26,7 @@ export const BudgetLimitModal: React.FC<BudgetLimitModalProps> = ({ category, on
 
   useEffect(() => {
     if (category) setLimitInput(existing?.monthlyLimit ? String(existing.monthlyLimit) : '')
-  }, [category]) // oxlint-disable-line react-hooks/exhaustive-deps
+  }, [category]) // oxlint-disable-line react-hooks/exhaustive-deps -- reset only when a different category is opened
 
   const handleSave = async () => {
     if (!category) return

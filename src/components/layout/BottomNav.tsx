@@ -1,13 +1,12 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, History, MessageSquare, BarChart2, Settings } from 'lucide-react'
+import { Home, Wallet, Heart, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 const NAV_ITEMS = [
   { to: '/', icon: Home, labelKey: 'nav.home', id: 'nav-home' },
-  { to: '/history', icon: History, labelKey: 'nav.history', id: 'nav-history' },
-  { to: '/ai-chat', icon: MessageSquare, labelKey: 'nav.aiChat', id: 'nav-ai-chat' },
-  { to: '/reports', icon: BarChart2, labelKey: 'nav.reports', id: 'nav-reports' },
+  { to: '/accounts', icon: Wallet, labelKey: 'nav.accounts', id: 'nav-accounts' },
+  { to: '/wishlist', icon: Heart, labelKey: 'nav.wishlist', id: 'nav-wishlist' },
   { to: '/settings', icon: Settings, labelKey: 'nav.settings', id: 'nav-settings' },
 ]
 
