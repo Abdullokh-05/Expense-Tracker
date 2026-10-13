@@ -105,6 +105,23 @@ export interface WishlistItem {
 }
 
 // =====================
+// Template
+// =====================
+// A saved entry the user makes often (a usual taxi fare, a coffee): one tap records it for today
+export interface TransactionTemplate {
+  id: string
+  userId: string
+  type: 'expense' | 'income'
+  amount: number
+  categoryId: string
+  accountId: string | null
+  note: string | null
+  createdAt: string
+  updatedAt: string
+  synced?: boolean
+}
+
+// =====================
 // Budget
 // =====================
 export interface Budget {
@@ -183,6 +200,7 @@ export type SyncTable =
   | 'recurring_transactions'
   | 'accounts'
   | 'wishlist_items'
+  | 'templates'
 
 export interface SyncQueueItem {
   id: string

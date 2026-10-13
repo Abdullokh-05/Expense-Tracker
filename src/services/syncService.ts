@@ -88,6 +88,7 @@ export async function migrateGuestData(targetUserId: string): Promise<void> {
     { table: db.recurringTransactions, syncTable: 'recurring_transactions' },
     { table: db.accounts, syncTable: 'accounts' },
     { table: db.wishlistItems, syncTable: 'wishlist_items' },
+    { table: db.templates, syncTable: 'templates' },
   ] as const
 
   for (const { table, syncTable } of tables) {

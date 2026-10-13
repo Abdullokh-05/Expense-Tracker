@@ -93,7 +93,13 @@
     "accountRequired": "Choose an account",
     "transferAccountsRequired": "Choose two different accounts",
     "receivedAmountRequired": "Enter the amount received",
-    "incomeSource": "Source"
+    "incomeSource": "Source",
+    "templates": "Templates",
+    "manageTemplates": "Remove",
+    "saveAsTemplate": "Save as template",
+    "saveAsTemplateHint": "Record this entry again later with one tap.",
+    "templateSaved": "Template saved",
+    "templateAccountMissing": "This template's account no longer exists"
   },
   "history": {
     "title": "History",
@@ -330,7 +336,9 @@
     "sortLargest": "Largest first",
     "sortSmallest": "Smallest first",
     "allAccounts": "All accounts",
-    "showMore": "Show more ({{count}} left)"
+    "showMore": "Show more ({{count}} left)",
+    "upcoming": "Coming up this month: {{count}}",
+    "expectedBalance": "Expected balance at month end: {{amount}}"
   },
   "breakdown": {
     "outcomeTitle": "Where the money went",
@@ -413,5 +421,10 @@
     "recordPurchase": "Record the purchase",
     "markOnly": "Only mark as bought",
     "markedBought": "Marked as bought"
+  },
+  "upcoming": {
+    "title": "Coming up this month",
+    "expectedBalance": "Expected balance at month end",
+    "manage": "Manage recurring payments"
   }
 }

@@ -93,7 +93,13 @@
     "accountRequired": "Выберите счёт",
     "transferAccountsRequired": "Выберите два разных счёта",
     "receivedAmountRequired": "Введите сумму зачисления",
-    "incomeSource": "Источник"
+    "incomeSource": "Источник",
+    "templates": "Шаблоны",
+    "manageTemplates": "Убрать",
+    "saveAsTemplate": "Сохранить как шаблон",
+    "saveAsTemplateHint": "Потом эту запись можно будет добавить одним нажатием.",
+    "templateSaved": "Шаблон сохранён",
+    "templateAccountMissing": "Счёта этого шаблона больше нет"
   },
   "history": {
     "title": "История",
@@ -330,7 +336,9 @@
     "sortLargest": "Сначала крупные",
     "sortSmallest": "Сначала мелкие",
     "allAccounts": "Все счета",
-    "showMore": "Показать ещё (осталось {{count}})"
+    "showMore": "Показать ещё (осталось {{count}})",
+    "upcoming": "Предстоит в этом месяце: {{count}}",
+    "expectedBalance": "Ожидаемый баланс на конец месяца: {{amount}}"
   },
   "breakdown": {
     "outcomeTitle": "Куда ушли деньги",
@@ -413,5 +421,10 @@
     "recordPurchase": "Записать покупку",
     "markOnly": "Только отметить купленным",
     "markedBought": "Отмечено как купленное"
+  },
+  "upcoming": {
+    "title": "Предстоит в этом месяце",
+    "expectedBalance": "Ожидаемый баланс на конец месяца",
+    "manage": "Управление повторяющимися платежами"
   }
 }

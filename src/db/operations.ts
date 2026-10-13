@@ -6,6 +6,7 @@ import type {
   RecurringTransaction,
   Account,
   WishlistItem,
+  TransactionTemplate,
   AppSettings,
   SyncQueueItem,
   SyncOperation,
@@ -130,6 +131,29 @@ export async function updateWishlistItem(id: string, patch: Partial<WishlistItem
 export async function deleteWishlistItem(id: string): Promise<void> {
   await db.wishlistItems.delete(id)
   await addToSyncQueue('wishlist_items', 'delete', id, { id })
+}
+
+// =====================
+// Templates
+// =====================
+export async function getTemplates(userId = 'guest'): Promise<TransactionTemplate[]> {
+  const templates = await db.templates.where('userId').equals(userId).toArray()
+  return templates.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+}
+
+export async function createTemplate(
+  data: Omit<TransactionTemplate, 'id' | 'createdAt' | 'updatedAt' | 'synced'>
+): Promise<TransactionTemplate> {
+  const now = nowISO()
+  const template: TransactionTemplate = { ...data, id: generateId(), createdAt: now, updatedAt: now, synced: false }
+  await db.templates.add(template)
+  await addToSyncQueue('templates', 'create', template.id, template)
+  return template
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+  await db.templates.delete(id)
+  await addToSyncQueue('templates', 'delete', id, { id })
 }
 
 // =====================

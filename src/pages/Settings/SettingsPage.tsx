@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/store/appStore'
 import { useCategoryStore } from '@/store/categoryStore'
@@ -58,7 +59,9 @@ export const SettingsPage: React.FC = () => {
   // Modal controls
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showShortcutInfo, setShowShortcutInfo] = useState(false)
-  const [showRecurringManager, setShowRecurringManager] = useState(false)
+  // The home screen's "upcoming payments" links here with ?open=recurring
+  const [searchParams] = useSearchParams()
+  const [showRecurringManager, setShowRecurringManager] = useState(searchParams.get('open') === 'recurring')
   const [showPendingManager, setShowPendingManager] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [deleteRecurringId, setDeleteRecurringId] = useState<string | null>(null)
@@ -251,6 +254,7 @@ export const SettingsPage: React.FC = () => {
       await db.recurringTransactions.clear()
       await db.accounts.clear()
       await db.wishlistItems.clear()
+      await db.templates.clear()
       await db.chatMessages.clear()
       await db.aiInsights.clear()
       await db.syncQueue.clear()

@@ -7,6 +7,7 @@ import { useBudgetStore } from '@/store/budgetStore'
 import { useRecurringStore } from '@/store/recurringStore'
 import { useAccountStore } from '@/store/accountStore'
 import { useWishlistStore } from '@/store/wishlistStore'
+import { useTemplateStore } from '@/store/templateStore'
 
 let queue: Promise<void> = Promise.resolve()
 
@@ -33,5 +34,6 @@ async function reload(): Promise<void> {
     useRecurringStore.getState().loadRecurringTransactions(),
     useAccountStore.getState().loadAccounts(),
     useWishlistStore.getState().loadItems(),
+    useTemplateStore.getState().loadTemplates(),
   ])
 }

@@ -1,5 +1,13 @@
 import { db } from '@/db/schema'
-import type { Account, Budget, Category, RecurringTransaction, Transaction, WishlistItem } from '@/types'
+import type {
+  Account,
+  Budget,
+  Category,
+  RecurringTransaction,
+  Transaction,
+  TransactionTemplate,
+  WishlistItem,
+} from '@/types'
 import { todayDate } from '@/lib/utils'
 
 function downloadFile(filename: string, content: string, mimeType: string): void {
@@ -63,6 +71,7 @@ interface BackupFile {
   recurringTransactions: RecurringTransaction[]
   accounts: Account[]
   wishlistItems: WishlistItem[]
+  templates: TransactionTemplate[]
 }
 
 export async function exportBackup(userId: string, baseCurrency: string): Promise<void> {
@@ -77,6 +86,7 @@ export async function exportBackup(userId: string, baseCurrency: string): Promis
     recurringTransactions: await db.recurringTransactions.where('userId').equals(userId).toArray(),
     accounts: await db.accounts.where('userId').equals(userId).toArray(),
     wishlistItems: await db.wishlistItems.where('userId').equals(userId).toArray(),
+    templates: await db.templates.where('userId').equals(userId).toArray(),
   }
   downloadFile(`xarajat_backup_${todayDate()}.json`, JSON.stringify(backup, null, 2), 'application/json')
 }
@@ -86,13 +96,14 @@ const hasId = (record: unknown): boolean =>
 
 function parseBackup(text: string): BackupFile {
   const data = JSON.parse(text)
-  // Backups made before accounts and the wishlist existed simply lack these two lists;
+  // Backups made before accounts, the wishlist or templates existed simply lack those lists;
   // ensureDefaults() gives their transactions an account after the restore.
   if (data && typeof data === 'object') {
     data.accounts ??= []
     data.wishlistItems ??= []
+    data.templates ??= []
   }
-  const tables = ['transactions', 'categories', 'budgets', 'recurringTransactions', 'accounts', 'wishlistItems'] as const
+  const tables = ['transactions', 'categories', 'budgets', 'recurringTransactions', 'accounts', 'wishlistItems', 'templates'] as const
 
   const valid =
     data?.app === 'xarajat' &&
@@ -122,7 +133,7 @@ export async function restoreBackup(
 
   await db.transaction(
     'rw',
-    [db.transactions, db.categories, db.budgets, db.recurringTransactions, db.accounts, db.wishlistItems],
+    [db.transactions, db.categories, db.budgets, db.recurringTransactions, db.accounts, db.wishlistItems, db.templates],
     async () => {
       await db.transactions.where('userId').equals(userId).delete()
       await db.categories.where('userId').equals(userId).delete()
@@ -130,6 +141,7 @@ export async function restoreBackup(
       await db.recurringTransactions.where('userId').equals(userId).delete()
       await db.accounts.where('userId').equals(userId).delete()
       await db.wishlistItems.where('userId').equals(userId).delete()
+      await db.templates.where('userId').equals(userId).delete()
 
       await db.transactions.bulkPut(own(backup.transactions))
       await db.categories.bulkPut(own(backup.categories))
@@ -137,6 +149,7 @@ export async function restoreBackup(
       await db.recurringTransactions.bulkPut(own(backup.recurringTransactions))
       await db.accounts.bulkPut(own(backup.accounts))
       await db.wishlistItems.bulkPut(own(backup.wishlistItems))
+      await db.templates.bulkPut(own(backup.templates))
     }
   )
 

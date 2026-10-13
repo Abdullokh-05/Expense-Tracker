@@ -93,7 +93,13 @@
     "accountRequired": "Hisobni tanlang",
     "transferAccountsRequired": "Ikki xil hisobni tanlang",
     "receivedAmountRequired": "Kelib tushgan summani kiriting",
-    "incomeSource": "Manba"
+    "incomeSource": "Manba",
+    "templates": "Shablonlar",
+    "manageTemplates": "Olib tashlash",
+    "saveAsTemplate": "Shablon sifatida saqlash",
+    "saveAsTemplateHint": "Keyin bu yozuvni bir bosishda qo'shish mumkin bo'ladi.",
+    "templateSaved": "Shablon saqlandi",
+    "templateAccountMissing": "Bu shablonning hisobi endi yo'q"
   },
   "history": {
     "title": "Tarix",
@@ -330,7 +336,9 @@
     "sortLargest": "Avval kattalari",
     "sortSmallest": "Avval kichiklari",
     "allAccounts": "Barcha hisoblar",
-    "showMore": "Yana ko'rsatish ({{count}} ta qoldi)"
+    "showMore": "Yana ko'rsatish ({{count}} ta qoldi)",
+    "upcoming": "Shu oyda kutilmoqda: {{count}}",
+    "expectedBalance": "Oy oxirida kutilayotgan balans: {{amount}}"
   },
   "breakdown": {
     "outcomeTitle": "Pul qayerga ketdi",
@@ -413,5 +421,10 @@
     "recordPurchase": "Xaridni yozib qo'yish",
     "markOnly": "Faqat sotib olindi deb belgilash",
     "markedBought": "Sotib olindi deb belgilandi"
+  },
+  "upcoming": {
+    "title": "Shu oyda kutilmoqda",
+    "expectedBalance": "Oy oxirida kutilayotgan balans",
+    "manage": "Takrorlanuvchi to'lovlarni boshqarish"
   }
 }

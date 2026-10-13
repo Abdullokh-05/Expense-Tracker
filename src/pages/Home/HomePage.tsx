@@ -20,11 +20,14 @@ import { useTransactionStore } from '@/store/transactionStore'
 import { useCategoryStore } from '@/store/categoryStore'
 import { useAccountStore } from '@/store/accountStore'
 import { useBudgetStore } from '@/store/budgetStore'
+import { useRecurringStore } from '@/store/recurringStore'
 import { useConverter } from '@/store/ratesStore'
 import { formatAmount, formatDate, formatPeriodLabel, getDateRange, groupByDate } from '@/lib/utils'
 import { confirmedInRange, sumByType } from '@/lib/analytics'
 import { activeAccounts, getAccountBalances, sumBalances } from '@/lib/accounts'
 import { getCategoryKind, getCategoryName } from '@/lib/categories'
+import { getUpcomingNet, getUpcomingPayments } from '@/lib/upcoming'
+import { UpcomingSheet } from '@/components/transactions/UpcomingSheet'
 import { AddTransactionSheet } from '@/components/transactions/AddTransactionSheet'
 import { TransactionItem } from '@/components/transactions/TransactionItem'
 import { useTransactionActions } from '@/components/transactions/useTransactionActions'
@@ -47,11 +50,13 @@ export const HomePage: React.FC = () => {
   const allAccounts = useAccountStore((s) => s.accounts)
   const editAccount = useAccountStore((s) => s.editAccount)
   const budgets = useBudgetStore((s) => s.budgets)
+  const recurringTransactions = useRecurringStore((s) => s.recurringTransactions)
   const convert = useConverter()
   const { onEdit, onDelete, dialogs } = useTransactionActions()
 
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showAccounts, setShowAccounts] = useState(false)
+  const [showUpcoming, setShowUpcoming] = useState(false)
   // 0 is the current month, -1 the previous one, and so on back in time
   const [monthOffset, setMonthOffset] = useState(0)
 
@@ -92,6 +97,15 @@ export const HomePage: React.FC = () => {
   )
   const monthIncome = sumByType(monthTransactions, 'income')
   const monthOutcome = sumByType(monthTransactions, 'expense')
+
+  // Recurring payments still due before this month ends, and the balance they leave behind
+  const currentMonthEnd = getDateRange('month').to
+  const upcoming = useMemo(
+    () => getUpcomingPayments(recurringTransactions, currentMonthEnd, settings.baseCurrency, convert),
+    [recurringTransactions, currentMonthEnd, settings.baseCurrency, convert]
+  )
+  const upcomingNet = getUpcomingNet(upcoming, allAccounts)
+  const expectedBalance = total.total + upcomingNet
 
   // Categories that went over their monthly limit in the selected month
   const limitsExceeded = budgets.filter((budget) => {
@@ -352,6 +366,33 @@ export const HomePage: React.FC = () => {
               )}
             </button>
           </div>
+
+          {/* What recurring payments will still do to the balance this month */}
+          {monthOffset === 0 && upcoming.length > 0 && (
+            <button
+              id="upcoming-row"
+              onClick={() => setShowUpcoming(true)}
+              className="w-full text-left border-t border-[var(--color-border)] px-5 py-3 flex items-center justify-between gap-3 hover:bg-[var(--color-surface-2)] transition-colors"
+            >
+              <div className="min-w-0">
+                <span className="text-xs font-semibold block" style={{ color: 'var(--color-text-secondary)' }}>
+                  {t('home.upcoming', { count: upcoming.length })}
+                </span>
+                <span className="text-[11px] block amount-display" style={{ color: 'var(--color-text-muted)' }}>
+                  {t('home.expectedBalance', { amount: formatAmount(expectedBalance, settings.baseCurrency) })}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className="text-sm font-bold amount-display"
+                  style={{ color: upcomingNet > 0 ? 'var(--color-income)' : 'var(--color-text-primary)' }}
+                >
+                  {upcomingNet > 0 ? '+' : ''}{formatAmount(upcomingNet, settings.baseCurrency)}
+                </span>
+                <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
+              </div>
+            </button>
+          )}
         </div>
 
         {/* ── HISTORY ── */}
@@ -580,6 +621,16 @@ export const HomePage: React.FC = () => {
         onClose={() => setShowAddSheet(false)}
         prefilledCategory={searchParams.get('category') ?? undefined}
         prefilledType={searchParams.get('type') === 'income' ? 'income' : 'expense'}
+      />
+
+      <UpcomingSheet
+        isOpen={showUpcoming}
+        onClose={() => setShowUpcoming(false)}
+        upcoming={upcoming}
+        categories={categories}
+        accounts={allAccounts}
+        baseCurrency={settings.baseCurrency}
+        expectedBalance={expectedBalance}
       />
 
       {dialogs}

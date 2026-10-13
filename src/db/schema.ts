@@ -6,6 +6,7 @@ import type {
   RecurringTransaction,
   Account,
   WishlistItem,
+  TransactionTemplate,
   ChatMessage,
   AIInsight,
   SyncQueueItem,
@@ -20,6 +21,7 @@ export class XarajatDB extends Dexie {
   recurringTransactions!: Table<RecurringTransaction>
   accounts!: Table<Account>
   wishlistItems!: Table<WishlistItem>
+  templates!: Table<TransactionTemplate>
   chatMessages!: Table<ChatMessage>
   aiInsights!: Table<AIInsight>
   syncQueue!: Table<SyncQueueItem>
@@ -60,6 +62,12 @@ export class XarajatDB extends Dexie {
         'id, userId, isArchived, createdAt, updatedAt, synced',
       wishlistItems:
         'id, userId, status, createdAt, updatedAt, synced',
+    })
+
+    // Templates for entries made often
+    this.version(3).stores({
+      templates:
+        'id, userId, createdAt, updatedAt, synced',
     })
   }
 }

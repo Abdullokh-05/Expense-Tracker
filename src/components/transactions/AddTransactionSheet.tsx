@@ -8,12 +8,14 @@ import { useCategoryStore } from '@/store/categoryStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { useRecurringStore } from '@/store/recurringStore'
 import { useAccountStore } from '@/store/accountStore'
+import { useTemplateStore } from '@/store/templateStore'
 import { useConverter, useRatesStore } from '@/store/ratesStore'
 import { suggestCategory } from '@/db/operations'
 import { getCategoryKind, getCategoryName } from '@/lib/categories'
 import { advanceByFrequency, formatAmount, roundMoney, todayDate } from '@/lib/utils'
-import { Calendar, FileText, Repeat, ChevronDown, Trash2, Banknote, CreditCard } from 'lucide-react'
-import type { Account, Transaction, TransactionType, Category, RecurringFrequency } from '@/types'
+import { Calendar, FileText, Repeat, ChevronDown, Trash2, Banknote, CreditCard, BookmarkPlus, X } from 'lucide-react'
+import type { Account, Transaction, TransactionTemplate, TransactionType, Category, RecurringFrequency } from '@/types'
+import { ToggleRow } from '@/components/ui/ToggleRow'
 import { toast } from '@/components/ui/Toast'
 
 interface AddTransactionSheetProps {
@@ -91,6 +93,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const editTransaction = useTransactionStore((s) => s.editTransaction)
   const removeTransaction = useTransactionStore((s) => s.removeTransaction)
   const addRecurringTransaction = useRecurringStore((s) => s.addRecurringTransaction)
+  const { templates, addTemplate, removeTemplate } = useTemplateStore()
 
   const [type, setType] = useState<TransactionType>(prefilledType)
   const [amount, setAmount] = useState('')
@@ -106,6 +109,10 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const [isRecurring, setIsRecurring] = useState(false)
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly')
   const [autoCreate, setAutoCreate] = useState(true)
+
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false)
+  // While on, tapping a template removes it instead of using it
+  const [managingTemplates, setManagingTemplates] = useState(false)
 
   const [suggestedCat, setSuggestedCat] = useState<Category | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -140,6 +147,8 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setIsRecurring(false)
       setFrequency('monthly')
       setAutoCreate(true)
+      setSaveAsTemplate(false)
+      setManagingTemplates(false)
       setSuggestedCat(null)
       // Editing shows every field straight away
       setShowExtra(Boolean(transaction))
@@ -279,6 +288,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
           recurringTransactionId,
         })
         localStorage.setItem(LAST_ACCOUNT_KEY, account.id)
+        if (saveAsTemplate && type !== 'transfer') await saveTemplate(finalCategoryId)
       }
 
       toast.success(t('settings.saved'))
@@ -289,6 +299,89 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     } finally {
       isSaving.current = false
       setIsLoading(false)
+    }
+  }
+
+  // Keeps the entry as it is filled in now, for one-tap reuse later
+  const saveTemplate = async (categoryId: string) => {
+    if (type === 'transfer' || !account) return
+    await addTemplate({
+      userId: settings.userId,
+      type,
+      amount: parsedAmount,
+      categoryId,
+      accountId: account.id,
+      note: note.trim() || null,
+    })
+  }
+
+  const handleSaveTemplateFromEdit = async () => {
+    if (!hasValidAmount || !selectedCategoryId) {
+      toast.error(t('transaction.amountRequired'))
+      return
+    }
+    try {
+      await saveTemplate(selectedCategoryId)
+      toast.success(t('transaction.templateSaved'))
+    } catch {
+      toast.error(t('common.error'))
+    }
+  }
+
+  // One tap on a template records it for today, from the account it was saved with
+  const handleUseTemplate = async (template: TransactionTemplate) => {
+    if (isSaving.current) return
+    const templateAccount = allAccounts.find((a) => a.id === template.accountId && !a.isArchived)
+    if (!templateAccount) {
+      toast.error(t('transaction.templateAccountMissing'))
+      return
+    }
+    const templateRate = convert(1, templateAccount.currency, settings.baseCurrency)
+    if (templateRate === null) {
+      toast.error(t('transaction.rateUnavailable'))
+      return
+    }
+
+    isSaving.current = true
+    setIsLoading(true)
+    try {
+      await addTransaction({
+        userId: settings.userId,
+        type: template.type,
+        status: 'confirmed',
+        amount: template.amount,
+        currency: templateAccount.currency,
+        amountInBaseCurrency: roundMoney(template.amount * templateRate, settings.baseCurrency),
+        exchangeRate: templateRate,
+        categoryId: template.categoryId,
+        accountId: templateAccount.id,
+        toAccountId: null,
+        toAmount: null,
+        date: todayDate(),
+        note: template.note,
+        noteOriginal: template.note,
+        noteLanguage: null,
+        translationConfidence: null,
+        paymentMethod: templateAccount.type,
+        recurringTransactionId: null,
+      })
+      toast.success(t('settings.saved'))
+      onSaved?.()
+      onClose()
+    } catch {
+      toast.error(t('common.error'))
+    } finally {
+      isSaving.current = false
+      setIsLoading(false)
+    }
+  }
+
+  const handleTemplateTap = async (template: TransactionTemplate) => {
+    if (!managingTemplates) return handleUseTemplate(template)
+    try {
+      await removeTemplate(template.id)
+    } catch {
+      toast.error(t('common.error'))
     }
   }
 
@@ -343,6 +436,54 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         title={isEditing ? t('transaction.editTitle') : t('transaction.addTitle')}
       >
         <div className="space-y-4">
+
+          {/* Templates: entries made often, recorded for today with one tap */}
+          {!isEditing && templates.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                  {t('transaction.templates')}
+                </label>
+                <button
+                  id="manage-templates-btn"
+                  onClick={() => setManagingTemplates(!managingTemplates)}
+                  className="text-xs font-semibold"
+                  style={{ color: managingTemplates ? 'var(--color-expense)' : 'var(--color-text-muted)' }}
+                >
+                  {managingTemplates ? t('common.done') : t('transaction.manageTemplates')}
+                </button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+                {templates.map((template) => {
+                  const category = categories.find((c) => c.id === template.categoryId)
+                  const templateAccount = allAccounts.find((a) => a.id === template.accountId)
+                  return (
+                    <button
+                      key={template.id}
+                      onClick={() => handleTemplateTap(template)}
+                      className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all"
+                      style={{
+                        background: 'var(--color-surface-2)',
+                        border: managingTemplates ? '1.5px dashed var(--color-expense)' : '1.5px solid var(--color-border)',
+                      }}
+                    >
+                      <span className="text-lg leading-none">{category?.icon ?? '📦'}</span>
+                      <span>
+                        <span className="text-xs font-semibold block" style={{ color: 'var(--color-text-primary)' }}>
+                          {template.note || getCategoryName(category, t)}
+                        </span>
+                        <span className="text-[11px] block amount-display" style={{ color: 'var(--color-text-muted)' }}>
+                          {template.type === 'income' ? '+' : '−'}
+                          {formatAmount(template.amount, templateAccount?.currency ?? settings.baseCurrency)}
+                        </span>
+                      </span>
+                      {managingTemplates && <X size={14} style={{ color: 'var(--color-expense)' }} />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Type toggle */}
           {typeOptions.length > 0 && (
@@ -507,6 +648,18 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                 leftIcon={<Calendar size={16} />}
               />
 
+              {!isEditing && !isTransfer && (
+                <div className="rounded-xl p-3" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}>
+                  <ToggleRow
+                    id="save-template-toggle"
+                    label={t('transaction.saveAsTemplate')}
+                    description={t('transaction.saveAsTemplateHint')}
+                    checked={saveAsTemplate}
+                    onChange={setSaveAsTemplate}
+                  />
+                </div>
+              )}
+
               {/* Recurring (only when adding: an existing transaction is a single occurrence) */}
               {!isEditing && !isTransfer && (
                 <div className="rounded-xl p-3 space-y-3" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}>
@@ -569,6 +722,18 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                 style={{ color: 'var(--color-expense)' }}
               >
                 <Trash2 size={18} />
+              </Button>
+            )}
+            {isEditing && !isTransfer && (
+              <Button
+                id="template-from-edit-btn"
+                variant="secondary"
+                size="lg"
+                onClick={handleSaveTemplateFromEdit}
+                aria-label={t('transaction.saveAsTemplate')}
+                title={t('transaction.saveAsTemplate')}
+              >
+                <BookmarkPlus size={18} />
               </Button>
             )}
             <Button id="save-transaction-btn" fullWidth size="lg" onClick={() => handleSave()} loading={isLoading}>
