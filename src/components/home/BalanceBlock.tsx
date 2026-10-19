@@ -136,18 +136,6 @@ export const BalanceBlock: React.FC<BalanceBlockProps> = ({
   }, [])
   const totalParts = moneyParts(total.total, base)
 
-  const actions = (
-    <div className="hero-actions">
-      <button type="button" className="hbtn" aria-label={t('home.search')} onClick={onOpenSearch}>
-        <Search size={20} strokeWidth={1.75} />
-      </button>
-      <button type="button" className="hbtn" aria-label={bellLabel} onClick={onOpenNotifications}>
-        <Bell size={20} strokeWidth={1.75} />
-        {unreadCount > 0 && <span className="dot" aria-hidden="true" />}
-      </button>
-    </div>
-  )
-
   return (
     <>
       <section ref={heroRef} className="hero hero-surface" aria-label={t('home.totalBalance')}>
@@ -159,7 +147,15 @@ export const BalanceBlock: React.FC<BalanceBlockProps> = ({
             <span className="greet-hi">{greeting}</span>
             <span className="greet-name">{name || t('home.guest')}</span>
           </div>
-          {actions}
+          <div className="hero-actions">
+            <button type="button" className="hbtn" aria-label={t('home.search')} onClick={onOpenSearch}>
+              <Search size={20} strokeWidth={1.75} />
+            </button>
+            <button type="button" className="hbtn" aria-label={bellLabel} onClick={onOpenNotifications}>
+              <Bell size={20} strokeWidth={1.75} />
+              {unreadCount > 0 && <span className="dot" aria-hidden="true" />}
+            </button>
+          </div>
         </div>
 
         <CardCarousel

@@ -289,7 +289,7 @@ export function formatPeriodLabel(
     case 'month': {
       const label = isUzbek(locale)
         ? `${formatMonthName(from, locale)} ${from.getFullYear()}`
-        : from.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+        : from.toLocaleDateString(locale, { month: 'long', year: 'numeric' }).replace(/\s*г\.$/, '') // "октябрь 2026 г."
       return label.charAt(0).toUpperCase() + label.slice(1)
     }
     case 'year':

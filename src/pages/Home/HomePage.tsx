@@ -91,11 +91,9 @@ export const HomePage: React.FC = () => {
             <span className="flex flex-col flex-1 min-w-0">
               <span className="t-strong">
                 {t('home.paymentsDue', { count: upcoming.length })}
+                {/* the dot wraps with the amount, never left at the end of a line */}
                 {upcomingNet !== 0 && (
-                  <>
-                    {' · '}
-                    <span className="num">{masked ? MASK : formatListAmount(upcomingNet, base, base, true)}</span>
-                  </>
+                  <span className="num"> · {masked ? MASK : formatListAmount(upcomingNet, base, base, true)}</span>
                 )}
               </span>
               <span className="t-sub">

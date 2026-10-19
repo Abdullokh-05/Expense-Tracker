@@ -39,6 +39,8 @@ export const UpcomingPopUp: React.FC<UpcomingPopUpProps> = ({
   const navigate = useNavigate()
   const month = formatMonthName(parseDateString(todayDate()), i18n.language)
   const money = (amount: number) => (masked ? MASK : formatAmount(amount, baseCurrency))
+  // Uzbek starts with the month, which is written lowercase
+  const title = t('upcoming.titleMonth', { month })
 
   const subtitle = [
     net < 0 ? t('upcoming.take', { amount: money(-net) }) : net > 0 ? t('upcoming.bring', { amount: money(net) }) : '',
@@ -48,7 +50,7 @@ export const UpcomingPopUp: React.FC<UpcomingPopUpProps> = ({
     .join(' ')
 
   return (
-    <PopUp isOpen={isOpen} onClose={onClose} title={t('upcoming.titleMonth', { month })} subtitle={subtitle}>
+    <PopUp isOpen={isOpen} onClose={onClose} title={title.charAt(0).toUpperCase() + title.slice(1)} subtitle={subtitle}>
       <div className="plist">
         {upcoming.map(({ recurring, date }, index) => {
           const category = categories.find((c) => c.id === recurring.categoryId)
