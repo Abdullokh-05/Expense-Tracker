@@ -18,10 +18,12 @@ import { useTransactionStore } from '@/store/transactionStore'
 import { useAccountStore } from '@/store/accountStore'
 import { useConverter } from '@/store/ratesStore'
 import { useUiStore } from '@/store/uiStore'
-import { activeAccounts, getAccountBalances, sumBalances } from '@/lib/accounts'
+import { accountColor, activeAccounts, getAccountBalances, sumBalances, totalScope } from '@/lib/accounts'
 import { confirmedInRange, sumByType } from '@/lib/analytics'
 import {
+  formatAmount,
   formatListAmount,
+  greetingKey,
   formatMonthName,
   formatPeriodLabel,
   getComparisonRange,
@@ -30,7 +32,9 @@ import {
   moneyParts,
   parseDateString,
 } from '@/lib/utils'
-import { CardCarousel } from './CardCarousel'
+import { CardCarousel, TotalCard } from './CardCarousel'
+import { AccountIcon } from '@/components/accounts/AccountCard'
+import { useWideScreen } from '@/lib/useWideScreen'
 
 interface BalanceBlockProps {
   // 0 is this month, -1 the one before, and so on
@@ -41,12 +45,6 @@ interface BalanceBlockProps {
   onOpenSearch: () => void
   onOpenProfile: () => void
   onOpenAccount: (account: Account) => void
-}
-
-function greetingKey(hour: number): 'morning' | 'afternoon' | 'evening' {
-  if (hour >= 5 && hour < 12) return 'morning'
-  if (hour >= 12 && hour < 18) return 'afternoon'
-  return 'evening'
 }
 
 function tileSize(text: string): string {
@@ -73,6 +71,7 @@ export const BalanceBlock: React.FC<BalanceBlockProps> = ({
   const masked = useUiStore((s) => s.amountsHidden)
   const toggleMasked = useUiStore((s) => s.toggleAmountsHidden)
   const base = settings.baseCurrency
+  const wide = useWideScreen()
   const lang = i18n.language
 
   // ── Balance ──
@@ -139,6 +138,8 @@ export const BalanceBlock: React.FC<BalanceBlockProps> = ({
   return (
     <>
       <section ref={heroRef} className="hero hero-surface" aria-label={t('home.totalBalance')}>
+        {/* On a computer the greeting and the bell sit in the page header instead */}
+        {!wide && (
         <div className="hero-top">
           <button type="button" className="avatar" aria-label={t('home.yourProfile')} onClick={onOpenProfile}>
             {avatar}
@@ -157,17 +158,61 @@ export const BalanceBlock: React.FC<BalanceBlockProps> = ({
             </button>
           </div>
         </div>
+        )}
 
-        <CardCarousel
-          accounts={accounts}
-          balances={balances}
-          total={total}
-          baseCurrency={base}
-          convert={convert}
-          masked={masked}
-          onToggleMasked={toggleMasked}
-          onOpenAccount={onOpenAccount}
-        />
+        {wide ? (
+          <>
+            <TotalCard
+              className="solo"
+              total={total}
+              baseCurrency={base}
+              scope={totalScope(accounts, total.complete, t)}
+              masked={masked}
+              onToggleMasked={toggleMasked}
+            />
+            <div className="flex flex-col" role="list" aria-label={t('accounts.title')}>
+              {accounts.map((account) => {
+                const balance = balances[account.id] ?? 0
+                const inBase = account.currency === base ? null : convert(balance, account.currency, base)
+                const off = !account.includeInTotal
+                return (
+                  <button
+                    key={account.id}
+                    type="button"
+                    role="listitem"
+                    className={`acc${off ? ' off' : ''}`}
+                    aria-label={`${account.name}, ${masked ? t('home.amountHidden') : formatAmount(balance, account.currency)}${off ? `, ${t('accounts.notCounted')}` : ''}, ${t('home.openAccountSettings')}`}
+                    onClick={() => onOpenAccount(account)}
+                  >
+                    <span className="bcard-ico" style={{ '--c': accountColor(account) } as React.CSSProperties} aria-hidden="true">
+                      <AccountIcon account={account} />
+                    </span>
+                    <span className="acc-main">
+                      <span className="acc-name">{account.name}</span>
+                      {off && <span className="t-cap">{t('accounts.notCounted')}</span>}
+                    </span>
+                    <span className="acc-end">
+                      <span className={`amt${masked ? ' masked' : ''}`}>{masked ? MASK : formatListAmount(balance, account.currency, base)}</span>
+                      {inBase !== null && !masked && <span className="amt-sub">≈ {formatListAmount(inBase, base, base)}</span>}
+                    </span>
+                    <ChevronRight size={16} strokeWidth={1.75} aria-hidden="true" />
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        ) : (
+          <CardCarousel
+            accounts={accounts}
+            balances={balances}
+            total={total}
+            baseCurrency={base}
+            convert={convert}
+            masked={masked}
+            onToggleMasked={toggleMasked}
+            onOpenAccount={onOpenAccount}
+          />
+        )}
 
         <div className="flex flex-col gap-3">
           <div className="mrow">

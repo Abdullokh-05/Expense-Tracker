@@ -6,8 +6,9 @@ import { IOSInstallPrompt } from './IOSInstallPrompt'
 import { AddTransactionSheet } from '@/components/transactions/AddTransactionSheet'
 import { useAppStore } from '@/store/appStore'
 import { useUiStore } from '@/store/uiStore'
-import { applyTheme, isDarkTheme } from '@/lib/theme'
-import { WifiOff, House, ChartColumn, Gift, Settings2, Sun, Moon, Plus } from 'lucide-react'
+import { applyTheme } from '@/lib/theme'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { WifiOff, House, ChartColumn, Gift, Settings2, Sun, Moon, Monitor, Plus, Leaf } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AppTheme } from '@/types'
 
@@ -34,64 +35,76 @@ export const AppShell: React.FC = () => {
     setSearchParams({}, { replace: true })
   }, [searchParams, setSearchParams, openAddSheet])
 
-  // What is on screen right now ("system" resolves to the OS setting), so the toggle
-  // always flips what the user actually sees
-  const isDark = isDarkTheme(settings.theme)
-
-  const toggleTheme = () => {
-    const nextTheme: AppTheme = isDark ? 'light' : 'dark'
-    setTheme(nextTheme)
-    applyTheme(nextTheme)
+  const changeTheme = (theme: AppTheme) => {
+    setTheme(theme)
+    applyTheme(theme)
   }
 
+  // N opens a new entry on a computer, unless something is being typed
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'n' || e.metaKey || e.ctrlKey || e.altKey || isOnboarding) return
+      const target = e.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return
+      e.preventDefault()
+      openAddSheet()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [openAddSheet, isOnboarding])
+
   const NAV_ITEMS = [
-    { to: '/', icon: House, labelKey: 'nav.home' },
-    { to: '/stats', icon: ChartColumn, labelKey: 'nav.stats' },
-    { to: '/wishlist', icon: Gift, labelKey: 'nav.wishlist' },
-    { to: '/settings', icon: Settings2, labelKey: 'nav.settings' },
+    { to: '/', icon: House, labelKey: 'nav.home', matches: (p: string) => p === '/' || p.startsWith('/accounts') },
+    { to: '/stats', icon: ChartColumn, labelKey: 'nav.stats', matches: (p: string) => p.startsWith('/stats') },
+    { to: '/wishlist', icon: Gift, labelKey: 'nav.wishlist', matches: (p: string) => p.startsWith('/wishlist') },
+    { to: '/settings', icon: Settings2, labelKey: 'nav.settings', matches: (p: string) => p.startsWith('/settings') },
   ]
 
   return (
-    <div className="min-h-dvh bg-bg text-ink flex flex-col lg:flex-row">
+    <div className="desk min-h-dvh text-ink flex flex-col lg:flex-row">
 
-      {/* ── DESKTOP SIDEBAR (restyled with the desktop layouts) ── */}
+      {/* ── DESKTOP SIDEBAR: floating glass over the pine wash ── */}
       {!isOnboarding && (
-        <aside className="hidden lg:flex flex-col w-64 bg-surface border-r border-line h-dvh sticky top-0 p-6 flex-shrink-0 justify-between">
-          <div className="space-y-8">
-            <div className="flex items-center gap-2.5 px-2">
-              <span className="text-2xl">💸</span>
-              <span className="t-head">Xarajat</span>
-            </div>
-
-            <button type="button" className="btn primary wide" onClick={() => openAddSheet()}>
-              <Plus size={18} /> {t('nav.addEntry')}
-            </button>
-
-            <nav className="flex flex-col gap-1" aria-label={t('nav.sidebarLabel')}>
-              {NAV_ITEMS.map(({ to, icon: Icon, labelKey }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  end={to === '/'}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 min-h-[44px] px-3 rounded-ctl text-[16px] font-medium transition-colors ${
-                      isActive ? 'bg-accent-soft text-accent-text font-semibold' : 'text-ink hover:bg-fill'
-                    }`
-                  }
-                >
-                  <Icon size={20} strokeWidth={1.75} />
-                  <span>{t(labelKey)}</span>
-                </NavLink>
-              ))}
-            </nav>
+        <aside className="side hidden lg:flex" aria-label={t('nav.sidebarLabel')}>
+          <div className="wordmark">
+            <span className="mark" aria-hidden="true">
+              <Leaf size={18} strokeWidth={1.75} />
+            </span>
+            <span>Xarajat</span>
           </div>
 
-          <button type="button" onClick={toggleTheme} className="btn secondary wide justify-between">
+          <button type="button" className="btn primary lg wide justify-between" onClick={() => openAddSheet()}>
             <span className="flex items-center gap-2">
-              {isDark ? <Moon size={16} /> : <Sun size={16} />}
-              <span>{isDark ? t('settings.darkTheme') : t('settings.lightTheme')}</span>
+              <Plus size={20} strokeWidth={1.75} aria-hidden="true" />
+              {t('nav.newEntry')}
             </span>
+            <kbd className="kbd" aria-hidden="true">N</kbd>
           </button>
+
+          <nav className="nav">
+            {NAV_ITEMS.map(({ to, icon: Icon, labelKey, matches }) => {
+              const on = matches(location.pathname)
+              return (
+                <NavLink key={to} to={to} className={`nav-item${on ? ' on' : ''}`} aria-current={on ? 'page' : undefined}>
+                  <Icon size={20} strokeWidth={on ? 2.1 : 1.75} aria-hidden="true" />
+                  <span>{t(labelKey)}</span>
+                </NavLink>
+              )
+            })}
+          </nav>
+
+          <div className="side-foot">
+            <SegmentedControl<AppTheme>
+              label={t('settings.theme')}
+              value={settings.theme}
+              onChange={changeTheme}
+              options={[
+                { value: 'light', label: <Sun size={18} strokeWidth={1.75} aria-label={t('settings.themeLight')} /> },
+                { value: 'dark', label: <Moon size={18} strokeWidth={1.75} aria-label={t('settings.themeDark')} /> },
+                { value: 'system', label: <Monitor size={18} strokeWidth={1.75} aria-label={t('sets.auto')} /> },
+              ]}
+            />
+          </div>
         </aside>
       )}
 

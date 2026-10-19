@@ -185,6 +185,18 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
           {converted && <span className="amt-sub">{converted}</span>}
         </span>
       </button>
+
+      {/* With a mouse there is nothing to slide: Edit and Delete show on hover instead */}
+      {onDelete && (
+        <span className="tx-hover">
+          <button type="button" className="iconbtn" aria-label={`${t('common.edit')}: ${title}`} onClick={() => onEdit(transaction)}>
+            <Pencil size={18} strokeWidth={1.75} />
+          </button>
+          <button type="button" className="iconbtn danger" aria-label={`${t('common.delete')}: ${title}`} onClick={() => onDelete(transaction.id)}>
+            <Trash2 size={18} strokeWidth={1.75} />
+          </button>
+        </span>
+      )}
     </div>
   )
 }

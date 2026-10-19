@@ -13,7 +13,8 @@
     "accounts": "Accounts",
     "wishlist": "Wishlist",
     "stats": "Stats",
-    "addEntry": "Add entry"
+    "addEntry": "Add entry",
+    "newEntry": "New entry"
   },
   "onboarding": {
     "welcome": "Welcome to Xarajat",
@@ -362,7 +363,8 @@
     "shownOf": "{{shown}} of {{count}} shown",
     "paymentsDue_one": "{{count}} payment still due",
     "paymentsDue_other": "{{count}} payments still due",
-    "monthEnd": "Month end ≈ {{amount}}"
+    "monthEnd": "Month end ≈ {{amount}}",
+    "guestMode": "Guest mode"
   },
   "accounts": {
     "title": "Accounts",
@@ -685,5 +687,48 @@
     "move": "Move {{name}}, {{position}} of {{count}}. Use the arrow keys.",
     "noteOut": "This is the order on the add screen; the first 7 show without scrolling. Hold the handle and drag to move one. Tap a category to change its name, icon, colour or limit.",
     "noteIn": "This is the order on the add screen when you add income. Hold the handle and drag to move one."
+  },
+  "add": {
+    "newEntry": "New entry",
+    "editEntry": "Edit entry",
+    "typeGroup": "Entry type",
+    "addNote": "Add a note",
+    "suggestion": "{{name}}?",
+    "useSuggestion": "Use {{name}}",
+    "tapToSave": "Tap a category to save",
+    "clickToSave": "Click a category to save",
+    "all": "All {{count}}",
+    "allCategories": "All categories",
+    "date": "Date",
+    "anotherDay": "Another day",
+    "repeat": "Repeat",
+    "howOften": "How often",
+    "whenDue": "When it is due",
+    "addForMe": "Add it for me",
+    "askFirst": "Ask me first",
+    "auto": "auto",
+    "ask": "ask",
+    "nextAuto": "Next one: {{date}}, added automatically",
+    "nextAsk": "Next one: {{date}}, waits for your OK",
+    "template": "Template",
+    "saveTemplate": "Save template",
+    "removeTemplate": "Remove template {{name}}",
+    "useTemplate": "Record {{name}} for today",
+    "swap": "Swap",
+    "received": "Amount received",
+    "rateUsed": "Rate used: {{rate}}",
+    "rateDefault": "Leave empty to use {{rate}}",
+    "secondAccount": "Add a second account to move money between them.",
+    "deleteKey": "Delete last digit",
+    "decimal": "Decimal point",
+    "deleteTitle_expense": "Delete this expense?",
+    "deleteTitle_income": "Delete this income?",
+    "deleteTitle_transfer": "Delete this transfer?",
+    "deleteText": "It disappears from History and from the totals.",
+    "keep": "Keep it",
+    "saved": "Saved",
+    "updated": "Updated",
+    "undo": "Undo",
+    "enterHint": "Enter saves with the chosen or suggested category."
   }
 }

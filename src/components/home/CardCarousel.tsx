@@ -5,6 +5,7 @@ import { ChevronRight, Eye, EyeOff } from 'lucide-react'
 import type { Account } from '@/types'
 import type { Converter } from '@/lib/accounts'
 import { AccountCard, BigMoney } from '@/components/accounts/AccountCard'
+import { totalScope } from '@/lib/accounts'
 
 interface CardCarouselProps {
   // Accounts in display order, archived ones already left out
@@ -16,6 +17,59 @@ interface CardCarouselProps {
   masked: boolean
   onToggleMasked: () => void
   onOpenAccount: (account: Account) => void
+}
+
+interface TotalCardProps {
+  total: { total: number; complete: boolean }
+  baseCurrency: string
+  scope: string
+  masked: boolean
+  onToggleMasked: () => void
+  label?: string
+  // Off to the side in the card row
+  hidden?: boolean
+  className?: string
+}
+
+// The dark Total balance card: the eye hides every amount; anywhere else on it opens Accounts
+export const TotalCard: React.FC<TotalCardProps> = ({
+  total,
+  baseCurrency,
+  scope,
+  masked,
+  onToggleMasked,
+  label,
+  hidden = false,
+  className = '',
+}) => {
+  const { t } = useTranslation()
+  return (
+    <div className={`bcard ${className}`} role="group" aria-label={label ?? t('home.totalBalance')} aria-hidden={hidden || undefined}>
+      <Link to="/accounts" className="bcard-link" aria-label={t('home.openAccounts')} tabIndex={hidden ? -1 : 0} draggable={false} />
+      <div className="bcard-top">
+        <span className="bcard-label">{t('home.totalBalance')}</span>
+        <button
+          type="button"
+          className="iconbtn"
+          aria-label={masked ? t('home.showAmounts') : t('home.hideAmounts')}
+          aria-pressed={masked}
+          tabIndex={hidden ? -1 : 0}
+          onClick={onToggleMasked}
+        >
+          {masked ? <EyeOff size={18} strokeWidth={1.75} /> : <Eye size={18} strokeWidth={1.75} />}
+        </button>
+      </div>
+      <div className="bcard-amt">
+        <BigMoney amount={total.total} currency={baseCurrency} masked={masked} size="xl" />
+      </div>
+      <div className="bcard-foot">
+        <span className={total.complete ? '' : 'warn'}>{scope}</span>
+        <span className="bcard-more" aria-hidden="true">
+          <ChevronRight size={18} strokeWidth={1.75} />
+        </span>
+      </div>
+    </div>
+  )
 }
 
 // The dark cards in the balance block: Total balance first, then one per account.
@@ -88,12 +142,7 @@ export const CardCarousel: React.FC<CardCarouselProps> = ({
     e.stopPropagation()
   }
 
-  const counted = accounts.filter((a) => a.includeInTotal).length
-  const scope = !total.complete
-    ? t('home.rateMissingShort')
-    : counted === accounts.length
-      ? t('home.scopeAll', { count: accounts.length })
-      : t('home.scopeSome', { counted, count: accounts.length })
+  const scope = totalScope(accounts, total.complete, t)
   const position = (n: number) => t('home.cardPosition', { index: n, count })
 
   return (
@@ -112,42 +161,15 @@ export const CardCarousel: React.FC<CardCarouselProps> = ({
         onClickCapture={handleClickCapture}
       >
         <div className="bcards-track">
-          <div
-            className="bcard"
-            role="group"
-            aria-label={`${t('home.totalBalance')}, ${position(1)}`}
-            aria-hidden={current !== 0}
-          >
-            <Link
-              to="/accounts"
-              className="bcard-link"
-              aria-label={t('home.openAccounts')}
-              tabIndex={current === 0 ? 0 : -1}
-              draggable={false}
-            />
-            <div className="bcard-top">
-              <span className="bcard-label">{t('home.totalBalance')}</span>
-              <button
-                type="button"
-                className="iconbtn"
-                aria-label={masked ? t('home.showAmounts') : t('home.hideAmounts')}
-                aria-pressed={masked}
-                tabIndex={current === 0 ? 0 : -1}
-                onClick={onToggleMasked}
-              >
-                {masked ? <EyeOff size={18} strokeWidth={1.75} /> : <Eye size={18} strokeWidth={1.75} />}
-              </button>
-            </div>
-            <div className="bcard-amt">
-              <BigMoney amount={total.total} currency={baseCurrency} masked={masked} size="xl" />
-            </div>
-            <div className="bcard-foot">
-              <span className={total.complete ? '' : 'warn'}>{scope}</span>
-              <span className="bcard-more" aria-hidden="true">
-                <ChevronRight size={18} strokeWidth={1.75} />
-              </span>
-            </div>
-          </div>
+          <TotalCard
+            total={total}
+            baseCurrency={baseCurrency}
+            scope={scope}
+            masked={masked}
+            onToggleMasked={onToggleMasked}
+            label={`${t('home.totalBalance')}, ${position(1)}`}
+            hidden={current !== 0}
+          />
 
           {accounts.map((account, i) => (
             <AccountCard

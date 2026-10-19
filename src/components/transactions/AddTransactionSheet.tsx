@@ -1,8 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BottomSheet, ConfirmDialog } from '@/components/ui/BottomSheet'
-import { Input } from '@/components/ui/Input'
+import { ArrowUpDown, Bookmark, Calendar, Check, Delete, LayoutGrid, Pencil, Repeat, Trash2, X } from 'lucide-react'
+import type { Category, RecurringFrequency, Transaction, TransactionTemplate, TransactionType } from '@/types'
+import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Button } from '@/components/ui/Button'
+import { Switch } from '@/components/ui/Switch'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { toast } from '@/components/ui/Toast'
+import { AccountIcon } from '@/components/accounts/AccountCard'
 import { useAppStore } from '@/store/appStore'
 import { useCategoryStore } from '@/store/categoryStore'
 import { useTransactionStore } from '@/store/transactionStore'
@@ -12,13 +17,20 @@ import { useTemplateStore } from '@/store/templateStore'
 import { useConverter, useRatesStore } from '@/store/ratesStore'
 import { suggestCategory } from '@/db/operations'
 import { getCategoryKind, getCategoryName } from '@/lib/categories'
-import { advanceByFrequency, formatAmount, roundMoney, todayDate } from '@/lib/utils'
-import { Calendar, FileText, Repeat, ChevronDown, Trash2, BookmarkPlus, X } from 'lucide-react'
-import type { Account, Transaction, TransactionTemplate, TransactionType, Category, RecurringFrequency } from '@/types'
-import { ToggleRow } from '@/components/ui/ToggleRow'
-import { toast } from '@/components/ui/Toast'
 import { paymentMethodOf } from '@/lib/accounts'
-import { AccountIcon } from '@/components/accounts/AccountCard'
+import { formatRateLine } from '@/lib/rates'
+import { useWideScreen } from '@/lib/useWideScreen'
+import {
+  addDays,
+  advanceByFrequency,
+  currencyDecimals,
+  currencySymbol,
+  formatAmount,
+  formatDayLabel,
+  formatShortDate,
+  roundMoney,
+  todayDate,
+} from '@/lib/utils'
 
 interface AddTransactionSheetProps {
   isOpen: boolean
@@ -32,47 +44,32 @@ interface AddTransactionSheetProps {
 
 // The account picked last time is offered first next time
 const LAST_ACCOUNT_KEY = 'xarajat-last-account'
+// Categories shown before "All N"
+const TOP_CATEGORIES = 7
+// Longest amount the keypad takes, in digits
+const MAX_DIGITS = 12
+
+type Panel = 'date' | 'repeat' | 'cats' | 'confirm'
+type Field = 'amount' | 'received'
 
 const parseAmount = (text: string) => parseFloat(text.replace(/[^0-9.]/g, ''))
-const cleanAmountInput = (text: string) => text.replace(/[^0-9.,]/g, '').replace(',', '.')
+// Typed amounts keep a dot for decimals whatever the language shows
+const cleanAmountInput = (text: string) => text.replace(/[\s ]/g, '').replace(',', '.').replace(/[^0-9.]/g, '')
 
-interface AccountPickerProps {
-  label: string
-  accounts: Account[]
-  selectedId: string
-  onSelect: (id: string) => void
+// "45 000" or "2,99" as the amount is being typed, keeping a trailing decimal mark
+function showTyped(raw: string, locale: string): string {
+  if (!raw) return '0'
+  const [whole, fraction] = raw.split('.')
+  const grouped = (whole || '0').replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+  return fraction === undefined ? grouped : grouped + (locale.startsWith('en') ? '.' : ',') + fraction
 }
 
-const AccountPicker: React.FC<AccountPickerProps> = ({ label, accounts, selectedId, onSelect }) => (
-  <div>
-    <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-      {label}
-    </label>
-    <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-      {accounts.map((account) => {
-        const selected = account.id === selectedId
-        return (
-          <button
-            key={account.id}
-            onClick={() => onSelect(account.id)}
-            aria-pressed={selected}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
-            style={{
-              background: selected ? 'var(--color-surface)' : 'var(--color-surface-2)',
-              border: selected ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border)',
-              color: selected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-            }}
-          >
-            <AccountIcon account={account} size={14} />
-            <span>{account.name}</span>
-            <span style={{ color: 'var(--color-text-muted)' }}>{account.currency}</span>
-          </button>
-        )
-      })}
-    </div>
-  </div>
-)
+function sizeClass(text: string): string {
+  return text.length > 13 ? 'xlong' : text.length > 10 ? 'long' : ''
+}
 
+// Add or edit an entry: type an amount, then one tap on a category saves it. Transfers move
+// money between two accounts, converting when their currencies differ.
 export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   isOpen,
   onClose,
@@ -81,11 +78,14 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   prefilledType = 'expense',
   onSaved,
 }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { settings } = useAppStore()
   const isEditing = Boolean(transaction)
+  // Wide screens type with a real keyboard, so they get a dialog without the keypad
+  const wide = useWideScreen()
+  // Phones use the keypad unless Settings asks for the phone's own keyboard
+  const typed = wide || settings.amountInput === 'keyboard'
 
-  // ✅ FIX: Select raw array, filter locally — never call methods in Zustand selectors
   const categories = useCategoryStore((s) => s.categories)
   const allAccounts = useAccountStore((s) => s.accounts)
   const loadRates = useRatesStore((s) => s.loadRates)
@@ -95,6 +95,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const editTransaction = useTransactionStore((s) => s.editTransaction)
   const removeTransaction = useTransactionStore((s) => s.removeTransaction)
   const addRecurringTransaction = useRecurringStore((s) => s.addRecurringTransaction)
+  const removeRecurringTransaction = useRecurringStore((s) => s.removeRecurringTransaction)
   const { templates, addTemplate, removeTemplate } = useTemplateStore()
 
   const [type, setType] = useState<TransactionType>(prefilledType)
@@ -103,10 +104,11 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const [toAccountId, setToAccountId] = useState('')
   // Typed only when the two accounts of a transfer are in different currencies
   const [toAmount, setToAmount] = useState('')
+  const [focus, setFocus] = useState<Field>('amount')
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [date, setDate] = useState(todayDate())
   const [note, setNote] = useState('')
-  const [showExtra, setShowExtra] = useState(false)
+  const [panel, setPanel] = useState<Panel | null>(null)
 
   const [isRecurring, setIsRecurring] = useState(false)
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly')
@@ -118,14 +120,16 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
   const [suggestedCat, setSuggestedCat] = useState<Category | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   // Synchronous guard: a double tap fires twice before isLoading has re-rendered
   const isSaving = useRef(false)
+  const amountInputRef = useRef<HTMLInputElement>(null)
 
-  // An archived account or category stays selectable on the transaction that already uses it
-  const accounts = allAccounts.filter(
+  // An archived account or category stays selectable on the transaction that already uses it.
+  // Accounts counted in the total come first, as on Home.
+  const usable = allAccounts.filter(
     (a) => !a.isArchived || a.id === transaction?.accountId || a.id === transaction?.toAccountId
   )
+  const accounts = [...usable.filter((a) => a.includeInTotal), ...usable.filter((a) => !a.includeInTotal)]
   const isTransfer = type === 'transfer'
   const shownCategories = categories.filter(
     (c) => getCategoryKind(c) === type && (!c.isArchived || c.id === transaction?.categoryId)
@@ -146,20 +150,21 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setType(transaction?.type ?? prefilledType)
       setAmount(transaction ? String(transaction.amount) : '')
       setAccountId(firstAccount)
-      setToAccountId(transaction?.toAccountId ?? active.find((a) => a.id !== firstAccount)?.id ?? '')
+      // A transfer goes to the first other account counted in the total, if there is one
+      const others = active.filter((a) => a.id !== firstAccount)
+      setToAccountId(transaction?.toAccountId ?? (others.find((a) => a.includeInTotal) ?? others[0])?.id ?? '')
       setToAmount(transaction?.toAmount != null ? String(transaction.toAmount) : '')
+      setFocus('amount')
       setSelectedCategoryId(transaction?.categoryId ?? prefilledCategory ?? '')
       setDate(transaction?.date ?? todayDate())
       setNote(transaction?.note ?? '')
+      setPanel(null)
       setIsRecurring(false)
       setFrequency('monthly')
       setAutoCreate(true)
       setSaveAsTemplate(false)
       setManagingTemplates(false)
       setSuggestedCat(null)
-      // Editing shows every field straight away
-      setShowExtra(Boolean(transaction))
-      setShowDeleteConfirm(false)
       // Foreign-currency accounts need rates; fetch them if this session hasn't yet
       if (!useRatesStore.getState().rates) loadRates()
     }
@@ -169,16 +174,17 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const account = accounts.find((a) => a.id === accountId)
   const toAccount = accounts.find((a) => a.id === toAccountId)
   const currency = account?.currency ?? settings.baseCurrency
+  const base = settings.baseCurrency
 
   // Rate from the account's currency to the base currency. Saving needs a real one: recording
   // a foreign amount at a made-up rate of 1 would silently corrupt every total. Editing
   // without changing the currency keeps the rate the transaction was recorded at.
   const rate: number | null =
-    currency === settings.baseCurrency
+    currency === base
       ? 1
       : transaction && transaction.currency === currency
         ? transaction.exchangeRate
-        : convert(1, currency, settings.baseCurrency)
+        : convert(1, currency, base)
 
   const parsedAmount = parseAmount(amount)
   const hasValidAmount = !isNaN(parsedAmount) && parsedAmount > 0
@@ -199,21 +205,43 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
   const handleTypeChange = (next: TransactionType) => {
     setType(next)
+    setPanel(null)
+    setFocus('amount')
     // A category belongs to one kind; don't carry an expense category over to an income
     const current = categories.find((c) => c.id === selectedCategoryId)
     if (current && getCategoryKind(current) !== next) setSelectedCategoryId('')
+    setSuggestedCat(null)
+    if (next === 'transfer') {
+      setIsRecurring(false)
+      // The account picked for spending may also be the transfer's destination: move the destination
+      if (accountId === toAccountId) setToAccountId(accounts.find((a) => a.id !== accountId && !a.isArchived)?.id ?? '')
+    }
   }
 
-  const handleNoteChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    setNote(val)
+  // Picking the account money goes to as the one it leaves swaps the two
+  const pickFrom = (id: string) => {
+    if (id === toAccountId) setToAccountId(accountId)
+    setAccountId(id)
+    setToAmount('')
+  }
+
+  const handleNoteChange = async (value: string) => {
+    setNote(value)
     // Settings › Adding entries can turn the suggestion off
-    if (val.trim().length > 2 && !isTransfer && settings.suggestCategory !== false) {
-      const suggested = await suggestCategory(settings.userId, val)
+    if (value.trim().length > 2 && !isTransfer && settings.suggestCategory !== false) {
+      const suggested = await suggestCategory(settings.userId, value)
       setSuggestedCat(suggested && getCategoryKind(suggested) === type ? suggested : null)
     } else {
       setSuggestedCat(null)
     }
+  }
+
+  // "Saved · −45 000 soʻm · Transport", with Undo for something just added
+  const announce = (saved: { amount: number; currency: string; type: TransactionType; what: string }, undo?: () => void) => {
+    const signed = saved.type === 'expense' ? -saved.amount : saved.amount
+    const message = `${undo ? t('add.saved') : t('add.updated')} · ${formatAmount(signed, saved.currency, { signed: saved.type === 'income' })} · ${saved.what}`
+    if (undo) toast.success(message, { label: t('add.undo'), onClick: undo })
+    else toast.success(message)
   }
 
   const handleSave = async (catId?: string) => {
@@ -253,7 +281,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         type,
         amount: parsedAmount,
         currency,
-        amountInBaseCurrency: roundMoney(parsedAmount * rate, settings.baseCurrency),
+        amountInBaseCurrency: roundMoney(parsedAmount * rate, base),
         exchangeRate: rate,
         categoryId: isTransfer ? null : finalCategoryId,
         accountId: account.id,
@@ -264,9 +292,13 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         noteOriginal: note.trim() || null,
         paymentMethod: paymentMethodOf(account),
       }
+      const what = isTransfer
+        ? `${account.name} → ${toAccount!.name}`
+        : getCategoryName(categories.find((c) => c.id === finalCategoryId), t)
 
       if (transaction) {
         await editTransaction(transaction.id, fields)
+        announce({ amount: parsedAmount, currency, type, what })
       } else {
         let recurringTransactionId: string | null = null
 
@@ -287,7 +319,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
           recurringTransactionId = rt.id
         }
 
-        await addTransaction({
+        const created = await addTransaction({
           ...fields,
           userId: settings.userId,
           status: 'confirmed',
@@ -297,9 +329,13 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         })
         localStorage.setItem(LAST_ACCOUNT_KEY, account.id)
         if (saveAsTemplate && type !== 'transfer') await saveTemplate(finalCategoryId)
+        // Undo takes back the entry and the repeat it started
+        announce({ amount: parsedAmount, currency, type, what }, () => {
+          removeTransaction(created.id)
+          if (recurringTransactionId) removeRecurringTransaction(recurringTransactionId)
+        })
       }
 
-      toast.success(t('settings.saved'))
       onSaved?.()
       onClose()
     } catch {
@@ -344,7 +380,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       toast.error(t('transaction.templateAccountMissing'))
       return
     }
-    const templateRate = convert(1, templateAccount.currency, settings.baseCurrency)
+    const templateRate = convert(1, templateAccount.currency, base)
     if (templateRate === null) {
       toast.error(t('transaction.rateUnavailable'))
       return
@@ -353,13 +389,13 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     isSaving.current = true
     setIsLoading(true)
     try {
-      await addTransaction({
+      const created = await addTransaction({
         userId: settings.userId,
         type: template.type,
         status: 'confirmed',
         amount: template.amount,
         currency: templateAccount.currency,
-        amountInBaseCurrency: roundMoney(template.amount * templateRate, settings.baseCurrency),
+        amountInBaseCurrency: roundMoney(template.amount * templateRate, base),
         exchangeRate: templateRate,
         categoryId: template.categoryId,
         accountId: templateAccount.id,
@@ -373,7 +409,15 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         paymentMethod: paymentMethodOf(templateAccount),
         recurringTransactionId: null,
       })
-      toast.success(t('settings.saved'))
+      announce(
+        {
+          amount: template.amount,
+          currency: templateAccount.currency,
+          type: template.type,
+          what: template.note || getCategoryName(categories.find((c) => c.id === template.categoryId), t),
+        },
+        () => removeTransaction(created.id)
+      )
       onSaved?.()
       onClose()
     } catch {
@@ -407,359 +451,529 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategoryId(categoryId)
+    if (panel === 'cats') setPanel(null)
     // Quick add: amount, then one tap on a category saves. Editing waits for the Save button.
-    if (!isEditing && amount) handleSave(categoryId)
+    if (!isEditing && hasValidAmount) handleSave(categoryId)
   }
 
-  const selectSty: React.CSSProperties = {
-    background: 'var(--color-surface-2)',
-    border: '1.5px solid var(--color-border)',
-    borderRadius: '12px',
-    padding: '0.75rem 2rem 0.75rem 0.875rem',
-    fontSize: '0.875rem',
-    color: 'var(--color-text-primary)',
-    fontFamily: 'inherit',
-    outline: 'none',
-    width: '100%',
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    cursor: 'pointer',
+  // ── The keypad types into the amount, or into "Amount received" when that is focused ──
+  const field: Field = crossCurrency && focus === 'received' ? 'received' : 'amount'
+  const fieldCurrency = field === 'received' ? toAccount!.currency : currency
+  const decimals = currencyDecimals(fieldCurrency)
+  const press = (key: string) => {
+    const current = field === 'received' ? toAmount : amount
+    let next = current
+    if (key === 'back') next = current.slice(0, -1)
+    else if (key === '.') {
+      if (decimals === 0 || current.includes('.')) return
+      next = (current || '0') + '.'
+    } else if (key === '000') {
+      if (!current || current.includes('.')) return
+      next = current + '000'
+    } else {
+      if (current.includes('.') && current.split('.')[1].length >= decimals) return
+      next = current === '0' ? key : current + key
+    }
+    if (next.replace('.', '').length > MAX_DIGITS) return
+    if (field === 'received') setToAmount(next)
+    else setAmount(next)
   }
 
-  // A transfer stays a transfer when edited, and the others can't become one
-  const typeOptions: TransactionType[] = !isEditing
-    ? ['expense', 'income', 'transfer']
-    : transaction?.type === 'transfer' ? [] : ['expense', 'income']
+  // The chosen account can sit off to the side of its row: bring it into view
+  useEffect(() => {
+    if (!isOpen) return
+    const frame = requestAnimationFrame(() => {
+      document.querySelectorAll<HTMLElement>('.add-sheet .accs').forEach((row) => {
+        const chosen = row.querySelector<HTMLElement>('.acc-chip.on')
+        if (!chosen) return
+        const left = chosen.offsetLeft - row.offsetLeft
+        // Only when it's cut off by the faded edge
+        const hidden = left - row.scrollLeft < 0 || left - row.scrollLeft + chosen.offsetWidth > row.clientWidth - 32
+        if (hidden) row.scrollLeft = left - 16
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [isOpen, accountId, toAccountId, type])
 
+  // In keyboard mode the amount field is focused as the sheet opens
+  useEffect(() => {
+    if (isOpen && typed && !isEditing) setTimeout(() => amountInputRef.current?.focus(), 50)
+  }, [isOpen, typed, isEditing])
+
+  const close = () => onClose()
+
+  // ── What shows ──
+  const symbol = currencySymbol(currency)
+  const amountText = showTyped(amount, i18n.language)
+  const amountColor = !amount ? 'var(--ink-2)' : type === 'income' ? 'var(--in)' : 'var(--ink)'
+  const conversion =
+    currency !== base
+      ? rate === null
+        ? null
+        : `${hasValidAmount ? `≈ ${formatAmount(parsedAmount * rate, base)} · ` : ''}${formatRateLine(currency, base, rate)}`
+      : ''
+  const goHint = !isEditing && hasValidAmount && !isTransfer
+  // A transfer's rate reads per one unit of the currency that isn't the main one: "1 $ = 12 600 soʻm".
+  // `perFrom` is how much of `to` one unit of `from` buys.
+  const pairRate = (from: string, to: string, perFrom: number) =>
+    from === base ? formatRateLine(to, from, 1 / perFrom) : formatRateLine(from, to, perFrom)
+
+  // Seven categories, then "All N"; a chosen one from further down takes the last place
+  const folds = shownCategories.length > TOP_CATEGORIES + 1
+  let topCategories = folds && !wide ? shownCategories.slice(0, TOP_CATEGORIES) : shownCategories
+  const selected = shownCategories.find((c) => c.id === selectedCategoryId)
+  if (selected && !topCategories.includes(selected)) topCategories = [...topCategories.slice(0, TOP_CATEGORIES - 1), selected]
+
+  const dateLabel =
+    date === todayDate() ? t('common.today') : date === addDays(todayDate(), -1) ? t('common.yesterday') : formatShortDate(date, i18n.language)
+  const repeatLabel = isRecurring
+    ? `${t(`transaction.${frequency}`)} · ${autoCreate ? t('add.auto') : t('add.ask')}`
+    : t('add.repeat')
+  const nextDate = advanceByFrequency(date, frequency)
   const typeLabel = (tx: TransactionType) =>
     tx === 'expense' ? t('transaction.expense') : tx === 'income' ? t('transaction.income') : t('transaction.transfer')
-  const typeColor = (tx: TransactionType) =>
-    tx === 'expense' ? 'var(--color-expense)' : tx === 'income' ? 'var(--color-income)' : 'var(--color-text-primary)'
+  const saveLabel = isTransfer && !isEditing ? t('transaction.transfer') : t('common.save')
 
-  return (
-    <>
-      <BottomSheet
-        isOpen={isOpen}
-        onClose={onClose}
-        title={isEditing ? t('transaction.editTitle') : t('transaction.addTitle')}
+  const renderCategory = (category: Category) => {
+    const on = category.id === selectedCategoryId
+    const suggested = !on && suggestedCat?.id === category.id
+    return (
+      <button
+        key={category.id}
+        type="button"
+        className={`cat${on ? ' on' : ''}${suggested ? ' sug' : ''}`}
+        aria-pressed={on}
+        onClick={() => handleCategorySelect(category.id)}
       >
-        <div className="space-y-4">
+        <span className="bub" style={{ '--c': category.color } as React.CSSProperties} aria-hidden="true">
+          {category.icon}
+        </span>
+        <span className={`cat-name${getCategoryName(category, t).length > 11 ? ' long' : ''}`}>{getCategoryName(category, t)}</span>
+      </button>
+    )
+  }
 
-          {/* Templates: entries made often, recorded for today with one tap */}
-          {!isEditing && templates.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
-                  {t('transaction.templates')}
-                </label>
-                <button
-                  id="manage-templates-btn"
-                  onClick={() => setManagingTemplates(!managingTemplates)}
-                  className="text-xs font-semibold"
-                  style={{ color: managingTemplates ? 'var(--color-expense)' : 'var(--color-text-muted)' }}
-                >
-                  {managingTemplates ? t('common.done') : t('transaction.manageTemplates')}
-                </button>
-              </div>
-              <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-                {templates.map((template) => {
-                  const category = categories.find((c) => c.id === template.categoryId)
-                  const templateAccount = allAccounts.find((a) => a.id === template.accountId)
-                  return (
-                    <button
-                      key={template.id}
-                      onClick={() => handleTemplateTap(template)}
-                      className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all"
-                      style={{
-                        background: 'var(--color-surface-2)',
-                        border: managingTemplates ? '1.5px dashed var(--color-expense)' : '1.5px solid var(--color-border)',
-                      }}
-                    >
-                      <span className="text-lg leading-none">{category?.icon ?? '📦'}</span>
-                      <span>
-                        <span className="text-xs font-semibold block" style={{ color: 'var(--color-text-primary)' }}>
-                          {template.note || getCategoryName(category, t)}
-                        </span>
-                        <span className="text-[11px] block amount-display" style={{ color: 'var(--color-text-muted)' }}>
-                          {template.type === 'income' ? '+' : '−'}
-                          {formatAmount(template.amount, templateAccount?.currency ?? settings.baseCurrency)}
-                        </span>
-                      </span>
-                      {managingTemplates && <X size={14} style={{ color: 'var(--color-expense)' }} />}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+  const accountChips = (selectedId: string, onPick: (id: string) => void, disabledId?: string, withIcons = true) =>
+    accounts.map((item) => {
+      const on = item.id === selectedId
+      return (
+        <button
+          key={item.id}
+          type="button"
+          className={`acc-chip${on ? ' on' : ''}`}
+          aria-pressed={on}
+          disabled={item.id === disabledId}
+          onClick={() => onPick(item.id)}
+        >
+          {withIcons && <AccountIcon account={item} size={18} />}
+          {item.name}
+          {item.currency !== base && <span className="code">{item.currency}</span>}
+        </button>
+      )
+    })
 
-          {/* Type toggle */}
-          {typeOptions.length > 0 && (
-            <div className="flex p-1 rounded-xl gap-1" style={{ background: 'var(--color-surface-2)' }}>
-              {typeOptions.map((tx) => (
-                <button
-                  key={tx}
-                  onClick={() => handleTypeChange(tx)}
-                  className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-150"
-                  style={{
-                    background: type === tx ? 'var(--color-surface)' : 'transparent',
-                    color: type === tx ? typeColor(tx) : 'var(--color-text-muted)',
-                    boxShadow: type === tx ? 'var(--shadow-sm)' : 'none',
-                  }}
-                >
-                  {typeLabel(tx)}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Amount, in the currency of the chosen account */}
-          <div>
-            <Input
-              id="amount-input"
-              type="text"
-              inputMode="decimal"
-              placeholder="0"
-              value={amount}
-              onChange={(e) => setAmount(cleanAmountInput(e.target.value))}
-              className="text-right text-2xl font-bold tracking-wide pl-14"
-              leftIcon={
-                <span style={{ color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '0.875rem' }}>
-                  {currency}
-                </span>
-              }
-              autoFocus
-            />
-
-            {/* What a foreign-currency amount will count as in the base currency */}
-            {currency !== settings.baseCurrency && (
-              <p
-                className="text-xs mt-1.5 text-right amount-display"
-                style={{ color: rate === null ? 'var(--color-expense)' : 'var(--color-text-muted)' }}
-              >
-                {rate === null
-                  ? t('transaction.rateUnavailable')
-                  : `≈ ${formatAmount(hasValidAmount ? parsedAmount * rate : 0, settings.baseCurrency)}`}
-              </p>
-            )}
-          </div>
-
-          <AccountPicker
-            label={isTransfer ? t('transaction.fromAccount') : t('transaction.account')}
-            accounts={accounts}
-            selectedId={accountId}
-            onSelect={setAccountId}
-          />
-
-          {isTransfer && (
-            <>
-              <AccountPicker
-                label={t('transaction.toAccount')}
-                accounts={accounts.filter((a) => a.id !== accountId)}
-                selectedId={toAccountId}
-                onSelect={setToAccountId}
-              />
-              {crossCurrency && (
-                <Input
-                  id="to-amount-input"
-                  type="text"
-                  inputMode="decimal"
-                  label={t('transaction.receivedAmount', { currency: toAccount!.currency })}
-                  placeholder={convertedToAmount === null ? '0' : String(roundMoney(convertedToAmount, toAccount!.currency))}
-                  value={toAmount}
-                  onChange={(e) => setToAmount(cleanAmountInput(e.target.value))}
-                />
-              )}
-            </>
-          )}
-
-          {/* Suggested category */}
-          {!isTransfer && suggestedCat && !selectedCategoryId && (
-            <button
-              onClick={() => handleCategorySelect(suggestedCat.id)}
-              className="w-full flex items-center justify-between p-3 rounded-xl transition-all"
-              style={{
-                background: 'color-mix(in srgb, var(--color-income) 8%, transparent)',
-                border: '1px dashed color-mix(in srgb, var(--color-income) 40%, transparent)',
-              }}
-            >
-              <span className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-                {t('transaction.suggestedCategory')}:
-              </span>
-              <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                <span>{suggestedCat.icon}</span>
-                <span>{getCategoryName(suggestedCat, t)}</span>
-              </span>
+  // ── Pieces ──
+  const head = (
+    <>
+      <div className="sheet-head">
+        <SegmentedControl<TransactionType>
+          label={t('add.typeGroup')}
+          fill={false}
+          value={type}
+          onChange={handleTypeChange}
+          options={(['expense', 'income', 'transfer'] as TransactionType[]).map((tx) => ({ value: tx, label: typeLabel(tx) }))}
+        />
+        <div className="flex items-center">
+          {isEditing && (
+            <button type="button" className="iconbtn danger" aria-label={t('transaction.delete')} onClick={() => setPanel('confirm')}>
+              <Trash2 size={20} strokeWidth={1.75} />
             </button>
           )}
-
-          {/* Category grid */}
-          {!isTransfer && (
-            <div>
-              <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                {type === 'income' ? t('transaction.incomeSource') : t('transaction.category')}
-              </label>
-              <div className="grid grid-cols-4 gap-2 max-h-[180px] overflow-y-auto hide-scrollbar">
-                {shownCategories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => handleCategorySelect(cat.id)}
-                    className="flex flex-col items-center gap-1 p-2.5 rounded-xl transition-all duration-150"
-                    style={{
-                      background: selectedCategoryId === cat.id
-                        ? `${cat.color}20`
-                        : 'var(--color-surface-2)',
-                      border: selectedCategoryId === cat.id
-                        ? `1.5px solid ${cat.color || 'var(--color-accent)'}`
-                        : '1.5px solid var(--color-border)',
-                      transform: selectedCategoryId === cat.id ? 'scale(1.05)' : 'scale(1)',
-                    }}
-                  >
-                    <span className="text-xl leading-none">{cat.icon}</span>
-                    <span
-                      className="text-[10px] font-medium truncate w-full text-center leading-tight"
-                      style={{ color: 'var(--color-text-primary)' }}
-                    >
-                      {getCategoryName(cat, t)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Expand extras */}
-          <button
-            onClick={() => setShowExtra(!showExtra)}
-            className="w-full flex items-center gap-1.5 text-xs font-semibold py-1 transition-colors"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            <ChevronDown size={13} style={{ transform: showExtra ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-            {showExtra ? t('transaction.hideDetails') : t('transaction.showDetails')}
+          <button type="button" className="iconbtn" aria-label={t('common.close')} onClick={close}>
+            <X size={20} strokeWidth={1.75} />
           </button>
+        </div>
+      </div>
+    </>
+  )
 
-          {showExtra && (
-            <div className="space-y-3 animate-fade-in">
-              <Input
-                id="note-input"
-                placeholder={t('transaction.notePlaceholder')}
-                value={note}
-                onChange={handleNoteChange}
-                leftIcon={<FileText size={16} />}
-              />
+  const pills = (compact: boolean) => (
+    <>
+      <button type="button" className={`dpill${panel === 'date' ? ' open' : date !== todayDate() ? ' on' : ''}`} onClick={() => setPanel(panel === 'date' ? null : 'date')}>
+        <Calendar size={18} strokeWidth={1.75} aria-hidden="true" />
+        {dateLabel}
+      </button>
+      {!isTransfer && !isEditing && (
+        <button
+          type="button"
+          className={`dpill${compact ? ' icon' : ''}${panel === 'repeat' ? ' open' : isRecurring ? ' on' : ''}`}
+          aria-label={compact ? repeatLabel : undefined}
+          aria-pressed={isRecurring}
+          onClick={() => setPanel(panel === 'repeat' ? null : 'repeat')}
+        >
+          <Repeat size={18} strokeWidth={1.75} aria-hidden="true" />
+          {!compact && repeatLabel}
+        </button>
+      )}
+      {!isTransfer && (
+        <button
+          type="button"
+          className={`dpill${compact ? ' icon' : ''}${!isEditing && saveAsTemplate ? ' on' : ''}`}
+          aria-label={compact ? (isEditing ? t('add.saveTemplate') : t('add.template')) : undefined}
+          aria-pressed={isEditing ? undefined : saveAsTemplate}
+          onClick={() => (isEditing ? handleSaveTemplateFromEdit() : setSaveAsTemplate(!saveAsTemplate))}
+        >
+          <Bookmark size={18} strokeWidth={1.75} aria-hidden="true" fill={!isEditing && saveAsTemplate ? 'currentColor' : 'none'} />
+          {!compact && (isEditing ? t('add.saveTemplate') : t('add.template'))}
+        </button>
+      )}
+    </>
+  )
 
-              <Input
-                id="date-input"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                leftIcon={<Calendar size={16} />}
-              />
+  const panels: Record<Panel, React.ReactNode> = {
+    date: (
+      <div className="panel">
+        <div className="panel-head">
+          <span className="t-head">{t('add.date')}</span>
+          <Button variant="ghost" onClick={() => setPanel(null)}>{t('common.done')}</Button>
+        </div>
+        <div className="chips">
+          {[0, -1, -2].map((back) => {
+            const day = addDays(todayDate(), back)
+            return (
+              <button key={day} type="button" className={`chip${date === day ? ' on' : ''}`} aria-pressed={date === day} onClick={() => setDate(day)}>
+                {formatDayLabel(day, i18n.language)}
+              </button>
+            )
+          })}
+        </div>
+        <label className="field">
+          <span className="t-label">{t('add.anotherDay')}</span>
+          <span className="input">
+            <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
+          </span>
+        </label>
+      </div>
+    ),
+    repeat: (
+      <div className="panel gap-2">
+        <div className="panel-head">
+          <span className="flex items-center gap-3">
+            <Switch checked={isRecurring} onChange={setIsRecurring} label={t('add.repeat')} />
+            <span className="t-head">{t('add.repeat')}</span>
+          </span>
+          <Button variant="ghost" onClick={() => setPanel(null)}>{t('common.done')}</Button>
+        </div>
+        <div className={`opt${isRecurring ? '' : ' opacity-40'}`}>
+          <span className="t-label">{t('add.howOften')}</span>
+          <SegmentedControl<RecurringFrequency>
+            label={t('add.howOften')}
+            value={frequency}
+            onChange={(next) => {
+              setFrequency(next)
+              setIsRecurring(true)
+            }}
+            options={(['weekly', 'monthly', 'yearly'] as RecurringFrequency[]).map((f) => ({ value: f, label: t(`transaction.${f}`) }))}
+          />
+        </div>
+        <div className={`opt${isRecurring ? '' : ' opacity-40'}`}>
+          <span className="t-label">{t('add.whenDue')}</span>
+          <SegmentedControl<'auto' | 'ask'>
+            label={t('add.whenDue')}
+            value={autoCreate ? 'auto' : 'ask'}
+            onChange={(next) => {
+              setAutoCreate(next === 'auto')
+              setIsRecurring(true)
+            }}
+            options={[
+              { value: 'auto', label: t('add.addForMe') },
+              { value: 'ask', label: t('add.askFirst') },
+            ]}
+          />
+        </div>
+        <span className={`t-cap${isRecurring ? '' : ' opacity-40'}`}>
+          {t(autoCreate ? 'add.nextAuto' : 'add.nextAsk', { date: formatDayLabel(nextDate, i18n.language) })}
+        </span>
+      </div>
+    ),
+    cats: (
+      <div className="panel gap-2 h-[216px] min-h-0">
+        <div className="panel-head">
+          <span className="t-head">{t('add.allCategories')}</span>
+          <Button variant="ghost" onClick={() => setPanel(null)}>{t('common.done')}</Button>
+        </div>
+        <div className="cats p-0 overflow-y-auto">{shownCategories.map(renderCategory)}</div>
+      </div>
+    ),
+    confirm: (
+      <div className="panel justify-center gap-6">
+        <div className="flex flex-col gap-1 text-center">
+          <span className="t-head">{t(`add.deleteTitle_${type}`)}</span>
+          <span className="t-sub">{t('add.deleteText')}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Button variant="secondary" onClick={() => setPanel(null)}>{t('add.keep')}</Button>
+          <Button variant="danger" onClick={handleDelete}>{t('common.delete')}</Button>
+        </div>
+      </div>
+    ),
+  }
 
-              {!isEditing && !isTransfer && (
-                <div className="rounded-xl p-3" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}>
-                  <ToggleRow
-                    id="save-template-toggle"
-                    label={t('transaction.saveAsTemplate')}
-                    description={t('transaction.saveAsTemplateHint')}
-                    checked={saveAsTemplate}
-                    onChange={setSaveAsTemplate}
-                  />
-                </div>
-              )}
-
-              {/* Recurring (only when adding: an existing transaction is a single occurrence) */}
-              {!isEditing && !isTransfer && (
-                <div className="rounded-xl p-3 space-y-3" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
-                      <Repeat size={14} />
-                      {t('transaction.recurring')}
-                    </div>
-                    <button
-                      onClick={() => setIsRecurring(!isRecurring)}
-                      role="switch"
-                      aria-checked={isRecurring}
-                      aria-label={t('transaction.recurring')}
-                      className="w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex-shrink-0"
-                      style={{ background: isRecurring ? 'var(--color-accent)' : 'var(--color-border)' }}
-                    >
-                      <div
-                        className="w-4 h-4 rounded-full transition-transform duration-200"
-                        style={{
-                          background: isRecurring ? 'var(--color-bg)' : '#fff',
-                          transform: isRecurring ? 'translateX(16px)' : 'translateX(0)',
-                        }}
-                      />
-                    </button>
-                  </div>
-
-                  {isRecurring && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="relative">
-                        <select value={frequency} onChange={(e) => setFrequency(e.target.value as RecurringFrequency)} style={{ ...selectSty, fontSize: '0.75rem' }}>
-                          <option value="weekly">{t('transaction.weekly')}</option>
-                          <option value="monthly">{t('transaction.monthly')}</option>
-                          <option value="yearly">{t('transaction.yearly')}</option>
-                        </select>
-                        <ChevronDown size={12} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
-                      </div>
-                      <div className="relative">
-                        <select value={autoCreate ? 'auto' : 'confirm'} onChange={(e) => setAutoCreate(e.target.value === 'auto')} style={{ ...selectSty, fontSize: '0.75rem' }}>
-                          <option value="auto">{t('transaction.recurringAuto')}</option>
-                          <option value="confirm">{t('transaction.recurringConfirm')}</option>
-                        </select>
-                        <ChevronDown size={12} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+  const keys = ['1', '2', '3', 'back', '4', '5', '6', '7', '8', '9', '000', '0', '.']
+  const dock = (
+    <div className="dock">
+      {panel ? (
+        panels[panel]
+      ) : typed ? (
+        <div className="save-row">
+          {wide ? pills(false) : pills(true)}
+          <span className="grow" />
+          {wide && (
+            <Button variant="secondary" onClick={close}>
+              {t('common.cancel')}
+            </Button>
           )}
+          <Button onClick={() => handleSave(selectedCategoryId || suggestedCat?.id)} disabled={!hasValidAmount} loading={isLoading}>
+            {saveLabel}
+          </Button>
+        </div>
+      ) : (
+        <div className="keys">
+          {keys.map((key) => {
+            const isBack = key === 'back'
+            const dotOff = key === '.' && decimals === 0
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`key${isBack || key === '000' || key === '.' ? ' fn' : ''}`}
+                disabled={dotOff}
+                aria-label={isBack ? t('add.deleteKey') : key === '.' ? t('add.decimal') : key}
+                onClick={() => press(key)}
+              >
+                {isBack ? <Delete size={22} strokeWidth={1.75} /> : key === '.' ? (i18n.language.startsWith('en') ? '.' : ',') : key}
+              </button>
+            )
+          })}
+          <button
+            type="button"
+            className="key save"
+            disabled={!hasValidAmount || isLoading}
+            aria-label={saveLabel}
+            onClick={() => handleSave()}
+          >
+            <Check size={22} strokeWidth={2} aria-hidden="true" />
+            <span>{saveLabel}</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
 
-          {/* Save */}
-          <div className="pt-1 flex gap-2">
-            {isEditing && (
-              <Button
-                id="delete-transaction-btn"
-                variant="secondary"
-                size="lg"
-                onClick={() => setShowDeleteConfirm(true)}
-                aria-label={t('transaction.delete')}
-                style={{ color: 'var(--color-expense)' }}
-              >
-                <Trash2 size={18} />
-              </Button>
-            )}
-            {isEditing && !isTransfer && (
-              <Button
-                id="template-from-edit-btn"
-                variant="secondary"
-                size="lg"
-                onClick={handleSaveTemplateFromEdit}
-                aria-label={t('transaction.saveAsTemplate')}
-                title={t('transaction.saveAsTemplate')}
-              >
-                <BookmarkPlus size={18} />
-              </Button>
-            )}
-            <Button id="save-transaction-btn" fullWidth size="lg" onClick={() => handleSave()} loading={isLoading}>
-              {t('transaction.save')}
+  const amountRow = (value: string, onTyped: (text: string) => void, active: boolean) =>
+    typed ? (
+      <input
+        ref={active ? amountInputRef : undefined}
+        className="amt-input"
+        inputMode="decimal"
+        enterKeyHint="done"
+        placeholder="0"
+        aria-label={t('transaction.amount')}
+        value={value}
+        // As wide as what is typed, so the currency stays next to the number
+        style={{ color: amountColor, width: `${Math.max(1, value.length) + 0.4}ch` }}
+        onChange={(e) => onTyped(cleanAmountInput(e.target.value))}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') handleSave(selectedCategoryId || suggestedCat?.id)
+        }}
+      />
+    ) : (
+      <>
+        <span className={`money-xl ${sizeClass(amountText)}`} style={{ color: amountColor }}>{amountText}</span>
+        {focus === 'amount' && <span className="caret" aria-hidden="true" />}
+      </>
+    )
+
+  return (
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={close}
+      label={isEditing ? t('add.editEntry') : t('add.newEntry')}
+      className={`add-sheet${typed ? ' typed' : ''}`}
+      bodyClassName="add-body"
+      header={head}
+      footer={dock}
+    >
+      {/* Templates: one tap records one for today */}
+      {!isEditing && !isTransfer && templates.some((tpl) => tpl.type === type) && (
+        <div className="tpls" role="group" aria-label={t('transaction.templates')}>
+          {templates
+            .filter((tpl) => tpl.type === type)
+            .map((template) => {
+              const category = categories.find((c) => c.id === template.categoryId)
+              const tplAccount = allAccounts.find((a) => a.id === template.accountId)
+              const name = template.note || getCategoryName(category, t)
+              return (
+                <button
+                  key={template.id}
+                  type="button"
+                  className={`tpl${managingTemplates ? ' del' : ''}`}
+                  aria-label={managingTemplates ? t('add.removeTemplate', { name }) : t('add.useTemplate', { name })}
+                  onClick={() => handleTemplateTap(template)}
+                >
+                  <span className="emo" aria-hidden="true">{category?.icon ?? '📦'}</span>
+                  <span>{name}</span>
+                  <span className="num">{showTyped(String(template.amount), i18n.language)}{tplAccount && tplAccount.currency !== base ? ` ${tplAccount.currency}` : ''}</span>
+                  {managingTemplates && (
+                    <span className="tpl-x" aria-hidden="true">
+                      <X size={12} strokeWidth={2.5} />
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          <button type="button" className="tpl ghost" aria-pressed={managingTemplates} onClick={() => setManagingTemplates(!managingTemplates)}>
+            {managingTemplates ? t('common.done') : t('transaction.manageTemplates')}
+          </button>
+        </div>
+      )}
+
+      <div className="entry">
+        <div className="entry-amt" aria-live="polite" onClick={() => setFocus('amount')}>
+          {symbol.before && <span className="money-xl cur-pre">{symbol.symbol}</span>}
+          {amountRow(amount, setAmount, true)}
+          {!symbol.before && <span className="cur">{symbol.symbol}</span>}
+        </div>
+        {conversion === null ? (
+          <div className="entry-sub err">{t('transaction.rateUnavailable')}</div>
+        ) : (
+          conversion && <div className="entry-sub">{conversion}</div>
+        )}
+        <label className="note-row">
+          <Pencil size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
+          <input
+            value={note}
+            placeholder={t('add.addNote')}
+            aria-label={t('transaction.note')}
+            maxLength={120}
+            onChange={(e) => handleNoteChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && typed) handleSave(selectedCategoryId || suggestedCat?.id)
+            }}
+          />
+          {!isTransfer && suggestedCat && suggestedCat.id !== selectedCategoryId && (
+            <button
+              type="button"
+              className="suggest"
+              aria-label={t('add.useSuggestion', { name: getCategoryName(suggestedCat, t) })}
+              onClick={() => handleCategorySelect(suggestedCat.id)}
+            >
+              <span aria-hidden="true">{suggestedCat.icon}</span>
+              <span>{t('add.suggestion', { name: getCategoryName(suggestedCat, t) })}</span>
+            </button>
+          )}
+        </label>
+      </div>
+
+      {isTransfer ? (
+        <div className="flex flex-col flex-none">
+          <div className="xfer-label">
+            <span className="t-over">{t('transaction.fromAccount')}</span>
+          </div>
+          <div className="accs" role="group" aria-label={t('transaction.fromAccount')}>
+            {accountChips(accountId, pickFrom, undefined, false)}
+          </div>
+          <div className="xfer-label">
+            <span className="t-over">{t('transaction.toAccount')}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!toAccountId}
+              onClick={() => {
+                setAccountId(toAccountId)
+                setToAccountId(accountId)
+                setToAmount('')
+                setFocus('amount')
+              }}
+            >
+              <ArrowUpDown size={18} strokeWidth={1.75} aria-hidden="true" />
+              {t('add.swap')}
             </Button>
           </div>
+          <div className="accs" role="group" aria-label={t('transaction.toAccount')}>
+            {accountChips(toAccountId, setToAccountId, accountId, false)}
+          </div>
+          {accounts.length < 2 && <p className="t-sub px-4 pt-3">{t('add.secondAccount')}</p>}
+          {crossCurrency && (
+            <div className="field px-4 pt-4">
+              <span className="t-label">{t('add.received')}</span>
+              {typed ? (
+                <span className="input">
+                  <input
+                    inputMode="decimal"
+                    value={toAmount}
+                    placeholder={convertedToAmount === null ? '' : String(roundMoney(convertedToAmount, toAccount!.currency))}
+                    aria-label={t('add.received')}
+                    onChange={(e) => setToAmount(cleanAmountInput(e.target.value))}
+                  />
+                  <span className="suffix" aria-hidden="true">{toAccount!.currency}</span>
+                </span>
+              ) : (
+                <button type="button" className={`input justify-between w-full${focus === 'received' ? ' focus' : ''}`} onClick={() => setFocus('received')}>
+                  <span className="flex items-center">
+                    <span className="amt text-[17px]" style={{ color: toAmount ? 'var(--ink)' : 'var(--ink-2)' }}>
+                      {toAmount
+                        ? formatAmount(parseAmount(toAmount), toAccount!.currency)
+                        : convertedToAmount === null
+                          ? '—'
+                          : formatAmount(convertedToAmount, toAccount!.currency)}
+                    </span>
+                    {focus === 'received' && <span className="caret h-5" aria-hidden="true" />}
+                  </span>
+                </button>
+              )}
+              <span className="help num">
+                {hasValidAmount && receivedAmount
+                  ? t('add.rateUsed', { rate: pairRate(currency, toAccount!.currency, receivedAmount / parsedAmount) })
+                  : (() => {
+                      const live = convert(1, currency, toAccount!.currency)
+                      return live ? t('add.rateDefault', { rate: pairRate(currency, toAccount!.currency, live) }) : t('transaction.receivedAmountRequired')
+                    })()}
+              </span>
+            </div>
+          )}
         </div>
-      </BottomSheet>
+      ) : (
+        <>
+          <div className="accs" role="group" aria-label={t('transaction.account')}>
+            {accountChips(accountId, setAccountId)}
+          </div>
+          <div className={`hint${goHint ? ' go' : ''}`}>
+            {goHint && <Check size={16} strokeWidth={2} aria-hidden="true" />}
+            {goHint ? (wide ? t('add.clickToSave') : t('add.tapToSave')) : type === 'income' ? t('transaction.incomeSource') : t('transaction.category')}
+          </div>
+          <div className={`cats${wide ? ' wide' : ''}`} role="group" aria-label={t('transaction.category')}>
+            {topCategories.map(renderCategory)}
+            {folds && !wide && (
+              <button type="button" className="cat all" onClick={() => setPanel('cats')}>
+                <span className="bub" aria-hidden="true">
+                  <LayoutGrid size={22} strokeWidth={1.75} />
+                </span>
+                <span className="cat-name">{t('add.all', { count: shownCategories.length })}</span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
-      <ConfirmDialog
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleDelete}
-        title={t('transaction.confirmDelete')}
-        description={t('transaction.deleteWarning')}
-        confirmLabel={t('transaction.delete')}
-        danger
-      />
-    </>
+      {/* With the keypad the options sit above it; typing puts them in the save row */}
+      {!typed && (
+        <>
+          <div className="flex-1" />
+          <div className="dpills">{pills(false)}</div>
+        </>
+      )}
+      {typed && wide && <p className="t-cap px-4 pt-3 pb-1">{t('add.enterHint')}</p>}
+    </BottomSheet>
   )
 }

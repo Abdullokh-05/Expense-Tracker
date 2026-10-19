@@ -4,10 +4,16 @@ import { useTranslation } from 'react-i18next'
 
 export type ToastType = 'success' | 'error' | 'info'
 
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 interface Toast {
   id: string
   message: string
   type: ToastType
+  action?: ToastAction
 }
 
 let toastListeners: ((toasts: Toast[]) => void)[] = []
@@ -18,16 +24,17 @@ function notify(listeners: ((toasts: Toast[]) => void)[]) {
 }
 
 export const toast = {
-  show: (message: string, type: ToastType = 'info') => {
+  show: (message: string, type: ToastType = 'info', action?: ToastAction) => {
     const id = Math.random().toString(36).slice(2)
-    toasts = [...toasts, { id, message, type }]
+    toasts = [...toasts, { id, message, type, action }]
     notify(toastListeners)
+    // A toast with a button stays a little longer, so there's time to press it
     setTimeout(() => {
       toasts = toasts.filter((t) => t.id !== id)
       notify(toastListeners)
-    }, 3500)
+    }, action ? 6000 : 3500)
   },
-  success: (message: string) => toast.show(message, 'success'),
+  success: (message: string, action?: ToastAction) => toast.show(message, 'success', action),
   error: (message: string) => toast.show(message, 'error'),
   info: (message: string) => toast.show(message, 'info'),
 }
@@ -60,6 +67,19 @@ export const ToastContainer: React.FC = () => {
         >
           <span className="tdot" aria-hidden="true" />
           <span className="t-main">{item.message}</span>
+          {item.action && (
+            <button
+              type="button"
+              className="btn sm toast-action"
+              onClick={() => {
+                item.action?.onClick()
+                toasts = toasts.filter((t) => t.id !== item.id)
+                notify(toastListeners)
+              }}
+            >
+              {item.action.label}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {

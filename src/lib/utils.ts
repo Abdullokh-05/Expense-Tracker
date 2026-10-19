@@ -344,7 +344,11 @@ export function formatDayLabel(dateStr: string, locale = i18n.language): string 
   const today = todayDate()
   if (dateStr === today) return i18n.t('common.today')
   if (dateStr === addDays(today, -1)) return i18n.t('common.yesterday')
+  return formatLongDate(dateStr, locale)
+}
 
+// "Monday, 12 October" for any day, today included (the year only when it isn't this one)
+export function formatLongDate(dateStr: string, locale = i18n.language): string {
   const date = parseDateString(dateStr)
   const sameYear = date.getFullYear() === new Date().getFullYear()
   if (isUzbek(locale)) {
@@ -365,6 +369,13 @@ export function formatDayLabel(dateStr: string, locale = i18n.language): string 
 // "18 Oct" / "18 окт." / "18-okt"
 export function formatShortDate(dateStr: string, locale = i18n.language): string {
   return formatDayMonth(parseDateString(dateStr), locale)
+}
+
+// Which greeting fits the hour: morning from 5, afternoon from 12, evening from 18
+export function greetingKey(hour: number): 'morning' | 'afternoon' | 'evening' {
+  if (hour >= 5 && hour < 12) return 'morning'
+  if (hour >= 12 && hour < 18) return 'afternoon'
+  return 'evening'
 }
 
 // Calculate percentage change

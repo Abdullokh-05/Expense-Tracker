@@ -13,7 +13,8 @@
     "accounts": "Hisoblar",
     "wishlist": "Istaklar",
     "stats": "Statistika",
-    "addEntry": "Yozuv qo'shish"
+    "addEntry": "Yozuv qo'shish",
+    "newEntry": "Yangi yozuv"
   },
   "onboarding": {
     "welcome": "Xarajatga xush kelibsiz",
@@ -362,7 +363,8 @@
     "shownOf": "{{count}} tadan {{shown}} tasi ko'rsatildi",
     "paymentsDue_one": "Yana {{count}} ta to'lov bor",
     "paymentsDue_other": "Yana {{count}} ta to'lov bor",
-    "monthEnd": "Oy oxirida ≈ {{amount}}"
+    "monthEnd": "Oy oxirida ≈ {{amount}}",
+    "guestMode": "Mehmon rejimi"
   },
   "accounts": {
     "title": "Hisoblar",
@@ -685,5 +687,48 @@
     "move": "{{name}}ni ko'chirish, {{count}} tadan {{position}}. Strelkalardan foydalaning.",
     "noteOut": "Qo'shish ekranida kategoriyalar shu tartibda chiqadi; dastlabki 7 tasi aylantirmasdan ko'rinadi. Ko'chirish uchun tutqichdan torting. Nomi, belgisi, rangi yoki limitini o'zgartirish uchun kategoriyani bosing.",
     "noteIn": "Kirim qo'shganda kategoriyalar shu tartibda chiqadi. Ko'chirish uchun tutqichdan torting."
+  },
+  "add": {
+    "newEntry": "Yangi yozuv",
+    "editEntry": "Yozuvni o'zgartirish",
+    "typeGroup": "Yozuv turi",
+    "addNote": "Izoh qo'shish",
+    "suggestion": "{{name}}?",
+    "useSuggestion": "{{name}}ni tanlash",
+    "tapToSave": "Saqlash uchun kategoriyani bosing",
+    "clickToSave": "Saqlash uchun kategoriyani bosing",
+    "all": "Hammasi {{count}}",
+    "allCategories": "Barcha kategoriyalar",
+    "date": "Sana",
+    "anotherDay": "Boshqa kun",
+    "repeat": "Takrorlash",
+    "howOften": "Qanchalik tez-tez",
+    "whenDue": "Muddati kelganda",
+    "addForMe": "O'zi qo'shsin",
+    "askFirst": "Mendan so'rasin",
+    "auto": "avto",
+    "ask": "so'raydi",
+    "nextAuto": "Keyingisi: {{date}}, avtomatik qo'shiladi",
+    "nextAsk": "Keyingisi: {{date}}, tasdig'ingizni kutadi",
+    "template": "Shablon",
+    "saveTemplate": "Shablonni saqlash",
+    "removeTemplate": "{{name}} shablonini o'chirish",
+    "useTemplate": "{{name}}ni bugun uchun yozish",
+    "swap": "Almashtirish",
+    "received": "Qabul qilingan summa",
+    "rateUsed": "Kurs: {{rate}}",
+    "rateDefault": "{{rate}} ishlatish uchun bo'sh qoldiring",
+    "secondAccount": "Pul o'tkazish uchun ikkinchi hisob qo'shing.",
+    "deleteKey": "Oxirgi raqamni o'chirish",
+    "decimal": "Kasr belgisi",
+    "deleteTitle_expense": "Bu chiqim o'chirilsinmi?",
+    "deleteTitle_income": "Bu kirim o'chirilsinmi?",
+    "deleteTitle_transfer": "Bu o'tkazma o'chirilsinmi?",
+    "deleteText": "U tarixdan va jami summalardan yo'qoladi.",
+    "keep": "Qoldirish",
+    "saved": "Saqlandi",
+    "updated": "O'zgartirildi",
+    "undo": "Bekor qilish",
+    "enterHint": "Enter tanlangan yoki taklif qilingan kategoriya bilan saqlaydi."
   }
 }

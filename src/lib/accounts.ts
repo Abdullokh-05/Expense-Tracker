@@ -112,3 +112,12 @@ export function paymentMethodOf(account: Account): PaymentMethod {
 export function accountTypeLabel(type: AccountType, t: TFunction): string {
   return t(type === 'cash' ? 'accounts.typeCash' : type === 'savings' ? 'accounts.typeSavings' : 'accounts.typeCard')
 }
+
+// "3 of 4 accounts" under the total, or why some are missing from it
+export function totalScope(accounts: Account[], complete: boolean, t: TFunction): string {
+  const counted = accounts.filter((a) => a.includeInTotal).length
+  if (!complete) return t('home.rateMissingShort')
+  return counted === accounts.length
+    ? t('home.scopeAll', { count: accounts.length })
+    : t('home.scopeSome', { counted, count: accounts.length })
+}

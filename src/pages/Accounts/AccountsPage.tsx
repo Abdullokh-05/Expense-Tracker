@@ -75,7 +75,9 @@ export const AccountsPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-[640px] mx-auto">
+    // One column on phones; on a computer the cards fill a grid and the rates sit on the right
+    <div className="flex flex-col gap-6 w-full max-w-[640px] mx-auto lg:max-w-[1100px] lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <div className="lg:col-span-2">
       <PageHeader
         title={t('accounts.title')}
         back={{ label: t('nav.home'), to: '/' }}
@@ -107,10 +109,13 @@ export const AccountsPage: React.FC = () => {
           </span>
         </div>
       </PageHeader>
+      </div>
 
+      <div className="flex flex-col gap-6 min-w-0">
       <Button
         variant="secondary"
         fullWidth
+        className="lg:w-auto lg:self-start"
         disabled={active.length < 2}
         onClick={() => openAddSheet({ type: 'transfer' })}
       >
@@ -126,7 +131,7 @@ export const AccountsPage: React.FC = () => {
               <span className="t-over">{group.label}</span>
               {!masked && <span className="num">{formatListAmount(group.sum, base, base)}</span>}
             </div>
-            <div className="cards">
+            <div className="cards lg:grid lg:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] lg:gap-3">
               {group.items.map((account) => (
                 <AccountCard
                   key={account.id}
@@ -181,8 +186,9 @@ export const AccountsPage: React.FC = () => {
           )}
         </div>
       )}
+      </div>
 
-      <section className="flex flex-col gap-2" aria-label={t('rates.title')}>
+      <section className="flex flex-col gap-2 lg:sticky lg:top-10" aria-label={t('rates.title')}>
         <div className="sec-head">
           <span className="t-over">{t('rates.title')}</span>
         </div>

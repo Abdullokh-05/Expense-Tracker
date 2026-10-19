@@ -10,8 +10,15 @@ interface BottomSheetProps {
   isOpen: boolean
   onClose: () => void
   title?: string
+  // Names the sheet for screen readers when it has no title
+  label?: string
+  // Replaces the title row (the add sheet puts its type switch there)
+  header?: React.ReactNode
+  // Pinned under the scrolling body, e.g. a keypad
+  footer?: React.ReactNode
   children: React.ReactNode
   className?: string
+  bodyClassName?: string
 }
 
 // Full-width sheet from the bottom edge, for longer tasks such as adding an entry
@@ -19,8 +26,12 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen,
   onClose,
   title,
+  label,
+  header,
+  footer,
   children,
   className = '',
+  bodyClassName = 'px-4 pt-2 pb-6 overflow-y-auto',
 }) => {
   const { t } = useTranslation()
   const onCloseRef = useRef(onClose)
@@ -49,13 +60,15 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={title ?? label}
         className={`sheet ${className}`}
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        // A footer keeps clear of the home indicator itself
+        style={footer ? undefined : { paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="grab" aria-hidden="true" />
 
-        {title && (
+        {header}
+        {!header && title && (
           <div className="flex items-center justify-between gap-2 pl-4 pr-2 min-h-[52px] flex-none">
             <h2 className="t-head text-ink">{title}</h2>
             <button className="pop-x" onClick={onClose} aria-label={t('common.close')}>
@@ -64,7 +77,8 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
           </div>
         )}
 
-        <div className="px-4 pt-2 pb-6 overflow-y-auto">{children}</div>
+        <div className={bodyClassName}>{children}</div>
+        {footer}
       </div>
     </div>,
     document.body

@@ -100,7 +100,7 @@
   .input { min-height: 44px; border-radius: 12px; background: var(--fill); border: 1px solid transparent; display: flex; align-items: center; gap: 8px; padding: 0 14px; font-size: 16px; color: var(--ink); min-width: 0; }
   .input input, .input select { flex: 1; min-width: 0; border: 0; background: none; outline: none; padding: 0; font-size: 16px; color: inherit; text-overflow: ellipsis; }
   .input input::placeholder { color: var(--ink-2); }
-  .input:focus-within { background: var(--surface); border-color: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .input:focus-within, .input.focus { background: var(--surface); border-color: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-soft); }
   .input.err { background: var(--surface); border-color: var(--danger-text); }
   .help { font-size: 13px; line-height: 1.3; font-weight: 500; color: var(--ink-2); }
   .help.err { color: var(--danger-text); }
@@ -223,6 +223,8 @@
   .toast .t-main { flex: 1; min-width: 0; padding: 8px 0; }
   .toast .iconbtn { color: var(--bg); width: 40px; height: 40px; }
   .toast .iconbtn:hover { background: rgba(127,127,127,.2); }
+  .toast .toast-action { color: var(--bg); background: transparent; font-weight: 600; }
+  .toast .toast-action:hover { background: rgba(127,127,127,.2); }
   .tdot { width: 8px; height: 8px; border-radius: 50%; background: var(--in); flex: none; }
   .toast.err .tdot { background: var(--danger); }
   .toast.info .tdot { background: var(--accent-text); }
