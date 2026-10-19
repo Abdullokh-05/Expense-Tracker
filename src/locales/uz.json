@@ -452,7 +452,8 @@
     "paidAmount": "To'landi ({{currency}})",
     "recordPurchase": "Xaridni yozib qo'yish",
     "markOnly": "Faqat sotib olindi deb belgilash",
-    "markedBought": "Sotib olindi deb belgilandi"
+    "markedBought": "Sotib olindi deb belgilandi",
+    "boughtGroup": "Sotib olingan"
   },
   "upcoming": {
     "title": "Shu oyda kutilmoqda",

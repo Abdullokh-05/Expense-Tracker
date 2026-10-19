@@ -84,6 +84,7 @@
   .pill.danger { background: var(--danger-soft); color: var(--danger-text); }
   .pill.ok { background: var(--in-soft); color: var(--in); }
   .pill.neutral { background: var(--fill); color: var(--ink-2); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
 
   /* segmented control: the selected segment is a glass thumb */
   .seg { display: flex; background: var(--fill); border-radius: 999px; padding: 3px; gap: 2px; min-width: 0; }

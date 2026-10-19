@@ -466,7 +466,8 @@
     "paidAmount": "Оплачено ({{currency}})",
     "recordPurchase": "Записать покупку",
     "markOnly": "Только отметить купленным",
-    "markedBought": "Отмечено как купленное"
+    "markedBought": "Отмечено как купленное",
+    "boughtGroup": "Куплено"
   },
   "upcoming": {
     "title": "Предстоит в этом месяце",

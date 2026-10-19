@@ -452,7 +452,8 @@
     "paidAmount": "Paid ({{currency}})",
     "recordPurchase": "Record the purchase",
     "markOnly": "Only mark as bought",
-    "markedBought": "Marked as bought"
+    "markedBought": "Marked as bought",
+    "boughtGroup": "Bought"
   },
   "upcoming": {
     "title": "Coming up this month",

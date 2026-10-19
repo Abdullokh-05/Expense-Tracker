@@ -10,9 +10,9 @@ import { useConverter } from '@/store/ratesStore'
 import { getCategoryKind, getCategoryName } from '@/lib/categories'
 import { DEFAULT_CATEGORIES } from '@/lib/constants'
 import { formatAmount, roundMoney, todayDate } from '@/lib/utils'
-import { BottomSheet } from '@/components/ui/BottomSheet'
+import { PopUp } from '@/components/ui/PopUp'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input, Select } from '@/components/ui/Input'
 import { toast } from '@/components/ui/Toast'
 import { paymentMethodOf } from '@/lib/accounts'
 
@@ -138,32 +138,31 @@ export const BuySheet: React.FC<BuySheetProps> = ({ item, onClose }) => {
   }
 
   return (
-    <BottomSheet isOpen={item !== null} onClose={onClose} title={t('wishlist.buyTitle')}>
+    <PopUp
+      isOpen={item !== null}
+      onClose={onClose}
+      title={t('wishlist.buyTitle')}
+      subtitle={item ? `${item.name} · ${formatAmount(item.price, item.currency)}` : undefined}
+      footerStack
+      footer={
+        <>
+          <Button id="record-purchase-btn" fullWidth size="lg" onClick={handleRecord} loading={isSaving}>
+            {t('wishlist.recordPurchase')}
+          </Button>
+          <Button id="mark-bought-only-btn" variant="ghost" fullWidth onClick={handleSkipExpense}>
+            {t('wishlist.markOnly')}
+          </Button>
+        </>
+      }
+    >
       {item && (
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>{item.name}</p>
-            <p className="text-xs amount-display" style={{ color: 'var(--color-text-muted)' }}>
-              {formatAmount(item.price, item.currency)}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
-                {t('wishlist.paidFrom')}
-              </label>
-              <select
-                id="buy-account-select"
-                value={accountId}
-                onChange={(e) => handleAccountChange(e.target.value)}
-                className="input-base text-sm"
-              >
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-            </div>
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Select id="buy-account-select" label={t('wishlist.paidFrom')} value={accountId} onChange={(e) => handleAccountChange(e.target.value)}>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </Select>
             <Input
               id="buy-paid-input"
               type="text"
@@ -174,42 +173,16 @@ export const BuySheet: React.FC<BuySheetProps> = ({ item, onClose }) => {
               onChange={(e) => setPaid(e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.'))}
             />
           </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
-                {t('transaction.category')}
-              </label>
-              <select
-                id="buy-category-select"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="input-base text-sm"
-              >
-                {expenseCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.icon} {getCategoryName(c, t)}</option>
-                ))}
-              </select>
-            </div>
-            <Input
-              id="buy-date-input"
-              type="date"
-              label={t('transaction.date')}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2 pt-1">
-            <Button id="record-purchase-btn" fullWidth size="lg" onClick={handleRecord} loading={isSaving}>
-              {t('wishlist.recordPurchase')}
-            </Button>
-            <Button id="mark-bought-only-btn" variant="ghost" fullWidth onClick={handleSkipExpense}>
-              {t('wishlist.markOnly')}
-            </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Select id="buy-category-select" label={t('transaction.category')} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+              {expenseCategories.map((c) => (
+                <option key={c.id} value={c.id}>{c.icon} {getCategoryName(c, t)}</option>
+              ))}
+            </Select>
+            <Input id="buy-date-input" type="date" label={t('transaction.date')} value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
         </div>
       )}
-    </BottomSheet>
+    </PopUp>
   )
 }
