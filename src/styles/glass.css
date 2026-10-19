@@ -1,0 +1,41 @@
+/* Xarajat redesign · Liquid Glass + pop-up backdrop, as reusable classes.
+   Use with tokens.css. Rule: glass only on the layer that floats over content
+   (tab bar, nav buttons, balance-block controls, segmented thumb, pop-ups, desktop sidebar).
+   Lists, cards and charts stay solid. */
+@layer components {
+  .glass, .glass-strong {
+    position: relative;
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-in), var(--glass-drop);
+  }
+  .glass-strong { background: var(--glass-strong); }
+
+  /* 1px specular rim: bright top-left, faint along the sides */
+  .glass::after, .glass-strong::after, .glass-rim::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(155deg, var(--glass-hi) 0%, var(--glass-lo) 30%, transparent 52%, var(--glass-lo) 78%, var(--glass-hi) 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+  }
+  .glass-rim { position: relative; }
+
+  /* pop-up backdrop: strong blur, boosted colour, fine grain */
+  .scrim {
+    position: absolute; inset: 0;
+    background: var(--scrim);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  }
+  .scrim::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: var(--noise); background-size: 180px 180px; opacity: var(--grain);
+  }
+
+  /* green prominent button with a glossy top edge */
+  .btn-primary {
+    color: var(--accent-ink); font-weight: 600; border-radius: 999px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, #fff) 0%, var(--accent) 70%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(0,0,0,.12), 0 6px 16px -8px color-mix(in srgb, var(--accent) 80%, transparent);
+  }
+}

@@ -11,7 +11,9 @@
     "sidebarLabel": "Боковая навигация",
     "mainLabel": "Основная навигация",
     "accounts": "Счета",
-    "wishlist": "Желания"
+    "wishlist": "Желания",
+    "stats": "Аналитика",
+    "addEntry": "Добавить запись"
   },
   "onboarding": {
     "welcome": "Добро пожаловать в Xarajat",

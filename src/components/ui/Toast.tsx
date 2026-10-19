@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { CheckCircle, AlertCircle, Info, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export type ToastType = 'success' | 'error' | 'info'
@@ -32,6 +32,7 @@ export const toast = {
   info: (message: string) => toast.show(message, 'info'),
 }
 
+// Dark glass pills at the top: a coloured dot (green done, red problem), the message and ×
 export const ToastContainer: React.FC = () => {
   const { t } = useTranslation()
   const [items, setItems] = React.useState<Toast[]>([])
@@ -45,47 +46,30 @@ export const ToastContainer: React.FC = () => {
 
   if (items.length === 0) return null
 
-  const icons = {
-    success: <CheckCircle size={16} style={{ color: 'var(--color-income)', flexShrink: 0 }} />,
-    error: <AlertCircle size={16} style={{ color: 'var(--color-expense)', flexShrink: 0 }} />,
-    info: <Info size={16} style={{ color: 'var(--color-info)', flexShrink: 0 }} />,
-  }
-
-  const borderColors = {
-    success: 'var(--color-income)',
-    error: 'var(--color-expense)',
-    info: 'var(--color-info)',
-  }
-
   return (
     <div
-      className="toast-container"
+      className="fixed inset-x-3 z-[70] mx-auto flex max-w-[420px] flex-col gap-2 pointer-events-none"
+      style={{ top: 'max(12px, env(safe-area-inset-top))' }}
       aria-live="polite"
     >
       {items.map((item) => (
         <div
           key={item.id}
-          className="toast"
-          style={{ borderLeftColor: borderColors[item.type] }}
-          role="alert"
+          className={`toast${item.type === 'error' ? ' err' : item.type === 'info' ? ' info' : ''}`}
+          role={item.type === 'error' ? 'alert' : 'status'}
         >
-          {icons[item.type]}
-          <span
-            className="flex-1 text-sm"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            {item.message}
-          </span>
+          <span className="tdot" aria-hidden="true" />
+          <span className="t-main">{item.message}</span>
           <button
+            type="button"
             onClick={() => {
               toasts = toasts.filter((t) => t.id !== item.id)
               notify(toastListeners)
             }}
-            className="transition-opacity hover:opacity-70"
-            style={{ color: 'var(--color-text-muted)' }}
+            className="iconbtn"
             aria-label={t('common.close')}
           >
-            <X size={14} />
+            <X size={16} />
           </button>
         </div>
       ))}

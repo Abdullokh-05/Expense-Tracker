@@ -25,3 +25,6 @@ dist-ssr
 
 .vercel
 .env*
+
+# Redesign hand-off from the design tool (reference only, not app code)
+xarajat-redesign/

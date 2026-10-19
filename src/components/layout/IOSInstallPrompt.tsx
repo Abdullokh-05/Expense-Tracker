@@ -38,7 +38,7 @@ export const IOSInstallPrompt: React.FC = () => {
 
   return (
     <div
-      className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-scale-in p-5 rounded-2xl border"
+      className="fixed bottom-[calc(96px+env(safe-area-inset-bottom))] left-4 right-4 md:left-auto md:right-4 md:w-96 lg:bottom-4 z-50 animate-scale-in p-5 rounded-card border"
       style={{
         background: 'var(--color-surface)',
         borderColor: 'var(--color-border)',

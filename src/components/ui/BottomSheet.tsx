@@ -1,6 +1,10 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { lockScroll } from '@/lib/scrollLock'
+import { PopUp } from '@/components/ui/PopUp'
+import { Button } from '@/components/ui/Button'
 
 interface BottomSheetProps {
   isOpen: boolean
@@ -10,6 +14,7 @@ interface BottomSheetProps {
   className?: string
 }
 
+// Full-width sheet from the bottom edge, for longer tasks such as adding an entry
 export const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen,
   onClose,
@@ -18,82 +23,47 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   className = '',
 }) => {
   const { t } = useTranslation()
-  const sheetRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => { document.body.style.overflow = '' }
-  }, [isOpen])
-
-  useEffect(() => {
+    if (!isOpen) return
+    const unlock = lockScroll()
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose()
+      if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
+    return () => {
+      unlock()
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [isOpen, onClose])
 
   if (!isOpen) return null
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      {/* Backdrop */}
+  return createPortal(
+    <div className="pop-layer">
+      <div className="scrim scrim-fade" onClick={onClose} aria-hidden="true" />
       <div
-        className="bottom-sheet-backdrop absolute inset-0"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      {/* Sheet panel */}
-      <div
-        ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`bottom-sheet-panel ${className}`}
-        style={{
-          background: 'var(--color-surface)',
-          borderRadius: '24px 24px 0 0',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}
+        className={`sheet ${className}`}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div
-            className="w-9 h-1 rounded-full opacity-30"
-            style={{ background: 'var(--color-text-primary)' }}
-          />
-        </div>
+        <div className="grab" aria-hidden="true" />
 
-        {/* Header */}
         {title && (
-          <div
-            className="flex items-center justify-between px-5 py-3"
-            style={{ borderBottom: '1px solid var(--color-border)' }}
-          >
-            <h2
-              className="text-base font-bold"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              {title}
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl transition-colors"
-              style={{ color: 'var(--color-text-muted)' }}
-              aria-label={t('common.close')}
-            >
-              <X size={18} />
+          <div className="flex items-center justify-between gap-2 pl-4 pr-2 min-h-[52px] flex-none">
+            <h2 className="t-head text-ink">{title}</h2>
+            <button className="pop-x" onClick={onClose} aria-label={t('common.close')}>
+              <span><X size={16} strokeWidth={2} /></span>
             </button>
           </div>
         )}
 
-        <div className="px-5 pt-4 pb-6">{children}</div>
+        <div className="px-4 pt-2 pb-6 overflow-y-auto">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -104,63 +74,12 @@ interface ModalProps {
   children: React.ReactNode
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
-  const { t } = useTranslation()
-
-  useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden'
-    else document.body.style.overflow = ''
-    return () => { document.body.style.overflow = '' }
-  }, [isOpen])
-
-  if (!isOpen) return null
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div
-        className="bottom-sheet-backdrop absolute inset-0"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      {/* z-index above the backdrop, which is positioned at z-50 */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className="relative z-[51] w-full max-w-sm animate-scale-in"
-        style={{
-          background: 'var(--color-surface)',
-          borderRadius: '20px',
-          boxShadow: 'var(--shadow-lg)',
-          border: '1px solid var(--color-border)',
-        }}
-      >
-        {title && (
-          <div
-            className="flex items-center justify-between px-5 py-4"
-            style={{ borderBottom: '1px solid var(--color-border)' }}
-          >
-            <h2
-              className="text-base font-bold"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              {title}
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg transition-colors"
-              style={{ color: 'var(--color-text-muted)' }}
-              aria-label={t('common.close')}
-            >
-              <X size={16} />
-            </button>
-          </div>
-        )}
-        <div className="p-5">{children}</div>
-      </div>
-    </div>
-  )
-}
+// Short tasks use the shared pop-up
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => (
+  <PopUp isOpen={isOpen} onClose={onClose} title={title}>
+    {children}
+  </PopUp>
+)
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -185,49 +104,26 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 }) => {
   const { t } = useTranslation()
 
-  if (!isOpen) return null
-
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="space-y-4">
-        <div>
-          <h3
-            className="font-bold text-base"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            {title}
-          </h3>
-          {description && (
-            <p
-              className="text-sm mt-1.5 leading-relaxed"
-              style={{ color: 'var(--color-text-secondary)' }}
-            >
-              {description}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-            style={{
-              background: 'var(--color-surface-2)',
-              color: 'var(--color-text-secondary)',
-              border: '1px solid var(--color-border)',
-            }}
-          >
+    <PopUp
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      subtitle={description}
+      footer={
+        <>
+          <Button variant="secondary" fullWidth onClick={onClose}>
             {cancelLabel ?? t('common.cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={danger ? 'danger' : 'primary'}
+            fullWidth
             onClick={() => { onConfirm(); onClose() }}
-            className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-              danger ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-[var(--color-accent)] text-[var(--color-bg)] hover:opacity-90'
-            }`}
           >
             {confirmLabel ?? t('common.confirm')}
-          </button>
-        </div>
-      </div>
-    </Modal>
+          </Button>
+        </>
+      }
+    />
   )
 }

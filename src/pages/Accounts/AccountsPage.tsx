@@ -12,7 +12,7 @@ import { getAccountBalances } from '@/lib/accounts'
 import { getCategoryKind, getCategoryName } from '@/lib/categories'
 import { AccountSheet } from '@/components/accounts/AccountSheet'
 import { CategorySheet } from '@/components/categories/CategorySheet'
-import { AddTransactionSheet } from '@/components/transactions/AddTransactionSheet'
+import { useUiStore } from '@/store/uiStore'
 import { Button } from '@/components/ui/Button'
 import type { Account, Category, CategoryKind } from '@/types'
 
@@ -28,7 +28,7 @@ export const AccountsPage: React.FC = () => {
   // undefined = closed, null = adding a new one, otherwise the one being edited
   const [accountSheet, setAccountSheet] = useState<Account | null | undefined>(undefined)
   const [categorySheet, setCategorySheet] = useState<Category | null | undefined>(undefined)
-  const [showTransfer, setShowTransfer] = useState(false)
+  const openAddSheet = useUiStore((s) => s.openAddSheet)
   const [kind, setKind] = useState<CategoryKind>('expense')
   const [showArchived, setShowArchived] = useState(false)
 
@@ -139,7 +139,7 @@ export const AccountsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button id="transfer-btn" variant="secondary" size="sm" onClick={() => setShowTransfer(true)} disabled={accounts.length < 2}>
+          <Button id="transfer-btn" variant="secondary" size="sm" onClick={() => openAddSheet({ type: 'transfer' })} disabled={accounts.length < 2}>
             <ArrowLeftRight size={14} /> {t('transaction.transfer')}
           </Button>
           <Button id="add-account-btn" size="sm" onClick={() => setAccountSheet(null)}>
@@ -215,12 +215,6 @@ export const AccountsPage: React.FC = () => {
         onClose={() => setCategorySheet(undefined)}
         category={categorySheet ?? undefined}
         kind={categorySheet ? getCategoryKind(categorySheet) : kind}
-      />
-
-      <AddTransactionSheet
-        isOpen={showTransfer}
-        onClose={() => setShowTransfer(false)}
-        prefilledType="transfer"
       />
     </div>
   )

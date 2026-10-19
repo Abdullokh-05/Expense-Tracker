@@ -1,93 +1,129 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
+@import "./styles/tokens.css";
+@import "./styles/glass.css";
+@import "./styles/kit.css";
 
 /* =====================
-   Design tokens / CSS variables (Light Mode)
+   Tailwind theme: utilities named after the redesign tokens (bg-surface, text-ink-2,
+   rounded-pop, shadow-glass, text-head …). `inline` makes each utility use the token
+   directly, so light and dark switch with the `dark` class on <html>.
+   ===================== */
+@theme inline {
+  --font-sans: var(--font);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-fill: var(--fill);
+  --color-fill-2: var(--fill-2);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-in: var(--in);
+  --color-in-soft: var(--in-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-text: var(--danger-text);
+  --color-danger-fill: var(--danger-fill);
+  --color-danger-soft: var(--danger-soft);
+  --color-hero: var(--hero);
+  --color-hero-ink: var(--hero-ink);
+  --color-hero-ink-2: var(--hero-ink-2);
+  --color-hero-in: var(--hero-in);
+  --color-hero-out: var(--hero-out);
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+
+  --shadow-1: var(--sh-1);
+  --shadow-2: var(--sh-2);
+  --shadow-glass: var(--glass-in), var(--glass-drop);
+  --shadow-hero: var(--hero-shadow);
+}
+
+@theme {
+  --radius-ctl: 12px;
+  --radius-row: 14px;
+  --radius-card: 20px;
+  --radius-pop: 28px;
+
+  --text-large: 34px;
+  --text-large--line-height: 1.15;
+  --text-large--font-weight: 700;
+  --text-large--letter-spacing: -0.02em;
+  --text-title: 28px;
+  --text-title--line-height: 1.2;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.015em;
+  --text-title-2: 22px;
+  --text-title-2--line-height: 1.25;
+  --text-title-2--font-weight: 600;
+  --text-title-2--letter-spacing: -0.015em;
+  --text-head: 17px;
+  --text-head--line-height: 1.3;
+  --text-head--font-weight: 600;
+  --text-body: 16px;
+  --text-body--line-height: 1.5;
+  --text-label: 15px;
+  --text-label--line-height: 1.4;
+  --text-label--font-weight: 500;
+  --text-sub: 14px;
+  --text-sub--line-height: 1.4;
+  --text-cap: 13px;
+  --text-cap--line-height: 1.3;
+  --text-cap--font-weight: 500;
+  --text-tab: 11px;
+  --text-tab--line-height: 1.2;
+  --text-tab--font-weight: 500;
+
+  --blur-glass: 22px;
+  --blur-scrim: 30px;
+}
+
+/* =====================
+   Old colour names, pointed at the new tokens so screens that haven't been converted yet
+   follow the new palette. Remove each one once nothing uses it.
    ===================== */
 :root {
-  --color-bg: #fdfcf7; /* Clean light cream background */
-  --color-surface: #f5f0e6; /* Warm cream surface for cards */
-  --color-surface-2: #eae3d5; /* Darker cream for secondary elements/inputs */
-  --color-border: rgba(15, 26, 18, 0.1); /* Thin dark green border */
-  --color-text-primary: #0f1a12; /* Deep dark green text */
-  --color-text-secondary: #354a3a;
-  --color-text-muted: #6e8071;
-  --color-accent: #0f1a12; /* Dark green accent */
-  --color-accent-hover: #1c2f21;
-  
-  /* Amber-red expense negatives & Solid forest green incomes */
-  --color-expense: #b45309; 
-  --color-income: #15803d; 
-  --color-warning: #c2410c;
-  --color-info: #0369a1;
-
-  --shadow-sm: 0 1px 2px 0 rgba(15, 26, 18, 0.03);
-  --shadow-md: 0 4px 12px -2px rgba(15, 26, 18, 0.05);
-  --shadow-lg: 0 12px 24px -4px rgba(15, 26, 18, 0.08);
-  --shadow-float: 0 20px 40px -12px rgba(15, 26, 18, 0.12);
-  
-  /* Modest corners matching editorial design */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
-  --radius-2xl: 22px;
-  --radius-full: 9999px;
-  
-  --duration-fast: 120ms;
-  --duration-normal: 200ms;
-  --duration-slow: 350ms;
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --color-surface-2: var(--fill);
+  --color-border: var(--line);
+  --color-text-primary: var(--ink);
+  --color-text-secondary: var(--ink-2);
+  --color-text-muted: var(--ink-2);
+  --color-expense: var(--danger-text);
+  --color-income: var(--in);
+  --color-warning: var(--warn);
+  --color-info: var(--accent-text);
+  --shadow-sm: var(--sh-1);
+  --shadow-md: var(--sh-2);
+  --shadow-lg: 0 24px 64px -20px rgba(0, 0, 0, .30);
 }
 
-/* =====================
-   Design tokens (Dark Mode)
-   ===================== */
-.dark {
-  --color-bg: #0f1a12; /* Deep dark green background from cvtashpulatov.vercel.app */
-  --color-surface: #16241a; /* Lighter dark green for cards */
-  --color-surface-2: #1d2f22; /* Inner input/button surfaces */
-  --color-border: rgba(245, 240, 230, 0.1); /* Thin cream border */
-  --color-text-primary: #f5f0e6; /* Warm cream primary text */
-  --color-text-secondary: #d9d2c5;
-  --color-text-muted: #a69e90;
-  --color-accent: #f5f0e6;
-  --color-accent-hover: #eae2d5;
-  --color-expense: #ef4444;
-  --color-income: #10b981;
-  --color-warning: #f59e0b;
-  
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.15);
-  --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 32px -4px rgba(0, 0, 0, 0.35);
-  --shadow-float: 0 20px 48px -12px rgba(0, 0, 0, 0.45);
-}
-
-/* Everything below lives in a cascade layer so that Tailwind utilities (p-5, sm:hidden,
-   text-xs...) can override it: unlayered rules always beat layered ones. Spacing is reset
-   by Tailwind's preflight, so there is no margin/padding reset here. */
 @layer base {
-  /* =====================
-     Reset & Base
-     ===================== */
-
   html {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: var(--font);
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    scroll-behavior: smooth;
-    background-color: var(--color-bg);
+    background-color: var(--bg);
+    color-scheme: light;
   }
+  html.dark { color-scheme: dark; }
 
-  /* Serif display headings */
-  h1, h2, h3, h4, h5, h6, .serif-heading {
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
   }
 
   #root {
@@ -96,43 +132,21 @@
     flex-direction: column;
   }
 
-  body {
-    background-color: var(--color-bg);
-    color: var(--color-text-primary);
-    overscroll-behavior: none;
-    line-height: 1.5;
-    min-height: 100dvh;
-    transition: background-color var(--duration-normal) var(--ease-smooth),
-                color var(--duration-normal) var(--ease-smooth);
+  h1, h2, h3, h4, h5, h6, .serif-heading {
+    letter-spacing: -0.015em;
   }
 
-  /* =====================
-     Interactive states
-     ===================== */
   button, [role="button"] {
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
   }
 
-  .pressable {
-    transition: transform var(--duration-fast) var(--ease-smooth),
-                opacity var(--duration-fast) var(--ease-smooth);
-  }
-  .pressable:active { transform: scale(0.97); opacity: 0.85; }
-
-  /* =====================
-     Focus ring
-     ===================== */
   :focus-visible {
-    outline: 1.5px solid var(--color-accent);
+    outline: 2px solid var(--accent-text);
     outline-offset: 2px;
-    border-radius: var(--radius-sm);
   }
 
-  /* =====================
-     iOS / Android specific tweaks
-     ===================== */
   input[type="date"],
   input[type="time"] {
     appearance: none;
@@ -148,12 +162,14 @@
   input[type="number"] { -moz-appearance: textfield; }
 }
 
-/* =====================
-   Animations
-   ===================== */
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.96); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
 
 @keyframes slide-up {
@@ -161,432 +177,85 @@
   to   { transform: translateX(-50%) translateY(0); }
 }
 
-@keyframes slide-down {
-  from { transform: translateX(-50%) translateY(0); }
-  to   { transform: translateX(-50%) translateY(100%); }
-}
-
-@keyframes scale-in {
-  from { transform: scale(0.9); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
-}
-
-@keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 20%, transparent); }
-  50%       { box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-accent) 0%, transparent); }
-}
-
-@keyframes count-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes bounce-in {
-  0%   { transform: scale(0.3); opacity: 0; }
-  50%  { transform: scale(1.08); }
-  70%  { transform: scale(0.95); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
+/* =====================
+   Helpers still used by screens that haven't been converted yet
+   ===================== */
 @layer components {
-  /* =====================
-     Safe area support
-     ===================== */
-  .safe-top    { padding-top: env(safe-area-inset-top); }
-  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-  .safe-left   { padding-left: env(safe-area-inset-left); }
-  .safe-right  { padding-right: env(safe-area-inset-right); }
-
-  /* =====================
-     Scrollbar utilities
-     ===================== */
   .hide-scrollbar::-webkit-scrollbar { display: none; }
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-  .thin-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-  .thin-scrollbar::-webkit-scrollbar-track { background: transparent; }
-  .thin-scrollbar::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 9999px; }
-
-  /* =====================
-     Typography
-     ===================== */
-  .text-display {
-    font-size: clamp(2.25rem, 8vw, 3.5rem);
-    font-weight: 700;
-    line-height: 1.05;
+  .amount-display {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
   }
 
-  .text-headline {
-    font-size: 1.375rem;
-    font-weight: 600;
-  }
+  .animate-fade-in  { animation: fade-in 200ms ease forwards; }
+  .animate-scale-in { animation: scale-in 260ms cubic-bezier(.2,.8,.2,1) forwards; }
 
-  .text-title {
-    font-size: 1.0625rem;
-    font-weight: 600;
-  }
-
-  .text-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .text-caption {
-    font-size: 0.75rem;
-    font-weight: 500;
-    line-height: 1.4;
-  }
-
-  /* =====================
-     Layout helpers
-     ===================== */
-  .desktop-frame {
+  .input-base {
     width: 100%;
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
+    min-height: 44px;
+    background: var(--fill);
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 0.625rem 14px;
+    font-size: 16px;
+    color: var(--ink);
+    font-family: inherit;
+    transition: border-color var(--ease), background var(--ease), box-shadow var(--ease);
+    -webkit-appearance: none;
+  }
+  .input-base::placeholder { color: var(--ink-2); }
+  .input-base:focus {
+    outline: none;
+    border-color: var(--accent-text);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
-  .app-container {
-    width: 100%;
-    min-height: 100dvh;
-    position: relative;
-    background-color: var(--color-bg);
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* =====================
-     Card & Surface
-     ===================== */
-  .card {
-    background: var(--color-surface);
-    border-radius: var(--radius-lg);
-    border: 1.5px solid var(--color-border);
-    box-shadow: var(--shadow-sm);
-    transition: border-color var(--duration-normal) var(--ease-smooth),
-                background-color var(--duration-normal) var(--ease-smooth);
-    overflow: hidden; /* Prevent child content bleeding over rounded corners */
-  }
-
-  .card:hover {
-    border-color: color-mix(in srgb, var(--color-text-primary) 25%, var(--color-border));
-  }
-
-  .card-elevated {
-    background: var(--color-surface);
-    border-radius: var(--radius-lg);
-    border: 1.5px solid var(--color-border);
-    box-shadow: var(--shadow-md);
+  .progress-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--fill);
     overflow: hidden;
   }
-
-  /* =====================
-     Hero / Gradient cards
-     ===================== */
-  .hero-card {
-    background: linear-gradient(145deg, var(--color-surface) 0%, var(--color-surface-2) 100%);
-    border: 1.5px solid var(--color-border);
-    border-radius: var(--radius-xl);
-    position: relative;
-    overflow: hidden;
+  .progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 350ms ease;
   }
 
-  /* =====================
-     Navigation
-     ===================== */
-  .bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: var(--color-surface);
-    border-top: 1.5px solid var(--color-border);
-    display: flex;
-    align-items: center;
-    padding-bottom: env(safe-area-inset-bottom);
-    z-index: 40;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    background-color: color-mix(in srgb, var(--color-surface) 92%, transparent);
-  }
-
-  /* =====================
-     Bottom sheet / Modal
-     ===================== */
   .bottom-sheet-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(15, 26, 18, 0.4);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: var(--scrim);
+    -webkit-backdrop-filter: var(--blur);
+    backdrop-filter: var(--blur);
     z-index: 50;
-    animation: fade-in var(--duration-normal) var(--ease-smooth) forwards;
+    animation: fade-in 200ms ease forwards;
   }
-
+  .bottom-sheet-backdrop::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: var(--noise);
+    background-size: 180px 180px;
+    opacity: var(--grain);
+  }
   .bottom-sheet-panel {
     position: fixed;
     bottom: 0;
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
-    max-width: 480px;
-    background: var(--color-surface);
-    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
-    border-top: 1.5px solid var(--color-border);
-    border-left: 1.5px solid var(--color-border);
-    border-right: 1.5px solid var(--color-border);
+    max-width: 560px;
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
     z-index: 51;
-    max-height: 90dvh;
+    max-height: 92dvh;
     overflow-y: auto;
-    animation: slide-up var(--duration-slow) var(--ease-spring) forwards;
+    animation: slide-up 320ms cubic-bezier(.2,.8,.2,1) forwards;
     padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  /* =====================
-     FAB (Floating Action Button)
-     ===================== */
-  .fab {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: var(--color-accent);
-    color: var(--color-bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: var(--shadow-float);
-    transition: transform var(--duration-fast) var(--ease-spring),
-                box-shadow var(--duration-fast) var(--ease-smooth);
-  }
-
-  .fab:hover {
-    transform: scale(1.05);
-  }
-
-  .fab:active {
-    transform: scale(0.94);
-  }
-
-  /* =====================
-     Form elements
-     ===================== */
-  .input-base {
-    width: 100%;
-    background: var(--color-surface-2);
-    border: 1.5px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: 0.75rem 1rem;
-    font-size: 0.9375rem;
-    color: var(--color-text-primary);
-    font-family: inherit;
-    transition: border-color var(--duration-fast) var(--ease-smooth),
-                background var(--duration-fast) var(--ease-smooth),
-                box-shadow var(--duration-fast) var(--ease-smooth);
-    -webkit-appearance: none;
-  }
-
-  .input-base::placeholder { color: var(--color-text-muted); }
-
-  .input-base:focus {
-    outline: none;
-    border-color: var(--color-accent);
-    background: var(--color-surface);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
-  }
-
-  /* =====================
-     Chip / Badge
-     ===================== */
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-    border: 1px solid transparent;
-  }
-
-  .chip-expense {
-    background: color-mix(in srgb, var(--color-expense) 12%, transparent);
-    color: var(--color-expense);
-    border-color: color-mix(in srgb, var(--color-expense) 20%, transparent);
-  }
-
-  .chip-income {
-    background: color-mix(in srgb, var(--color-income) 12%, transparent);
-    color: var(--color-income);
-    border-color: color-mix(in srgb, var(--color-income) 20%, transparent);
-  }
-
-  /* =====================
-     Progress bar
-     ===================== */
-  .progress-track {
-    height: 6px;
-    border-radius: var(--radius-full);
-    background: var(--color-surface-2);
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    border-radius: var(--radius-full);
-    transition: width var(--duration-slow) var(--ease-smooth);
-  }
-
-  /* =====================
-     Skeleton loading
-     ===================== */
-  .skeleton {
-    background: linear-gradient(
-      90deg,
-      var(--color-surface-2) 25%,
-      color-mix(in srgb, var(--color-surface-2) 60%, var(--color-surface)) 50%,
-      var(--color-surface-2) 75%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: var(--radius-md);
-  }
-
-  /* Animation utility classes */
-  .animate-fade-in    { animation: fade-in var(--duration-normal) var(--ease-smooth) forwards; }
-  .animate-scale-in   { animation: scale-in var(--duration-slow) var(--ease-spring) forwards; }
-  .animate-count-up   { animation: count-up var(--duration-slow) var(--ease-smooth) forwards; }
-  .animate-bounce-in  { animation: bounce-in 0.5s var(--ease-spring) forwards; }
-  .animate-pulse-glow { animation: pulse-glow 2s infinite; }
-
-  /* Stagger animation delays */
-  .delay-75  { animation-delay: 75ms; }
-  .delay-150 { animation-delay: 150ms; }
-  .delay-225 { animation-delay: 225ms; }
-  .delay-300 { animation-delay: 300ms; }
-
-  /* =====================
-     Swipe actions (TransactionItem)
-     ===================== */
-  .swipe-container {
-    position: relative;
-    overflow: hidden;
-    border-radius: var(--radius-xl);
-  }
-
-  .swipe-actions {
-    position: absolute;
-    top: 0;
-    right: 0;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0 12px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity var(--duration-fast) var(--ease-smooth);
-  }
-
-  .swipe-actions.visible {
-    opacity: 1;
-    pointer-events: all;
-  }
-
-  /* =====================
-     Page transitions
-     ===================== */
-  .page-enter {
-    animation: fade-in var(--duration-normal) var(--ease-smooth) forwards;
-  }
-
-  /* =====================
-     Status bar color theming (mobile)
-     ===================== */
-  @media (display-mode: standalone) {
-    html {
-      background: var(--color-bg);
-    }
-  }
-
-  /* =====================
-     Toast notifications
-     ===================== */
-  .toast-container {
-    position: fixed;
-    top: max(1rem, env(safe-area-inset-top));
-    left: 50%;
-    transform: translateX(-50%);
-    width: calc(100% - 2rem);
-    max-width: 400px;
-    z-index: 9999;
-    pointer-events: none;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .toast {
-    pointer-events: all;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    border-radius: var(--radius-xl);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    box-shadow: var(--shadow-lg);
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--color-text-primary);
-    animation: slide-down-toast 0.3s var(--ease-spring) forwards;
-  }
-
-  @keyframes slide-down-toast {
-    from { transform: translateY(-120%); opacity: 0; }
-    to   { transform: translateY(0); opacity: 1; }
-  }
-
-  .toast-success { border-left: 3px solid var(--color-income); }
-  .toast-error   { border-left: 3px solid var(--color-expense); }
-  .toast-info    { border-left: 3px solid var(--color-info); }
-
-  /* =====================
-     Misc utilities
-     ===================== */
-  .truncate-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .glass {
-    background: color-mix(in srgb, var(--color-surface) 70%, transparent);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1.5px solid color-mix(in srgb, var(--color-border) 60%, transparent);
-  }
-
-  /* Category color dots */
-  .category-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  /* Amount number style */
-  .amount-display {
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: 'tnum';
-    letter-spacing: -0.01em;
   }
 }

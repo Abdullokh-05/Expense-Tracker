@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { OnboardingPage } from '@/pages/Onboarding/OnboardingPage'
@@ -13,6 +13,10 @@ import { useRecurringStore } from '@/store/recurringStore'
 import { reloadAllData } from '@/store/reloadAll'
 import { processRecurringTransactions } from '@/services/recurringProcessor'
 import { useRatesStore } from '@/store/ratesStore'
+
+// Shared components on one page, for checking the redesign while it is built. Only in
+// development builds; production never includes it.
+const KitPage = import.meta.env.DEV ? lazy(() => import('@/pages/Kit/KitPage')) : null
 
 export const App: React.FC = () => {
   const { settings, setOnline } = useAppStore()
@@ -76,9 +80,13 @@ export const App: React.FC = () => {
       <Route element={<AppShell />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/breakdown/:type" element={<BreakdownPage />} />
+        <Route path="/stats" element={<BreakdownPage />} />
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/wishlist" element={<WishlistPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        {KitPage && (
+          <Route path="/kit" element={<Suspense fallback={null}><KitPage /></Suspense>} />
+        )}
         {/* Deep link redirect fallback */}
         <Route path="/add" element={<Navigate to="/?quick=true" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

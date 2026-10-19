@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import React, { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Plus,
@@ -21,6 +21,7 @@ import { useCategoryStore } from '@/store/categoryStore'
 import { useAccountStore } from '@/store/accountStore'
 import { useBudgetStore } from '@/store/budgetStore'
 import { useRecurringStore } from '@/store/recurringStore'
+import { useUiStore } from '@/store/uiStore'
 import { useConverter } from '@/store/ratesStore'
 import { formatAmount, formatDate, formatPeriodLabel, getDateRange, groupByDate } from '@/lib/utils'
 import { confirmedInRange, sumByType } from '@/lib/analytics'
@@ -28,7 +29,6 @@ import { activeAccounts, getAccountBalances, sumBalances } from '@/lib/accounts'
 import { getCategoryKind, getCategoryName } from '@/lib/categories'
 import { getUpcomingNet, getUpcomingPayments } from '@/lib/upcoming'
 import { UpcomingSheet } from '@/components/transactions/UpcomingSheet'
-import { AddTransactionSheet } from '@/components/transactions/AddTransactionSheet'
 import { TransactionItem } from '@/components/transactions/TransactionItem'
 import { useTransactionActions } from '@/components/transactions/useTransactionActions'
 import { Input } from '@/components/ui/Input'
@@ -43,7 +43,6 @@ const PAGE_SIZE = 30
 export const HomePage: React.FC = () => {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const { settings } = useAppStore()
   const transactions = useTransactionStore((s) => s.transactions)
   const categories = useCategoryStore((s) => s.categories)
@@ -54,7 +53,7 @@ export const HomePage: React.FC = () => {
   const convert = useConverter()
   const { onEdit, onDelete, dialogs } = useTransactionActions()
 
-  const [showAddSheet, setShowAddSheet] = useState(false)
+  const openAddSheet = useUiStore((s) => s.openAddSheet)
   const [showAccounts, setShowAccounts] = useState(false)
   const [showUpcoming, setShowUpcoming] = useState(false)
   // 0 is the current month, -1 the previous one, and so on back in time
@@ -73,12 +72,6 @@ export const HomePage: React.FC = () => {
   const [sort, setSort] = useState<HistorySort>('newest')
   const [showFiltersPanel, setShowFiltersPanel] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-
-  // Handle deep link: /add?quick=true
-  useEffect(() => {
-    const isQuick = searchParams.get('quick') === 'true'
-    if (isQuick) setShowAddSheet(true)
-  }, [searchParams])
 
   // ── Balance ──
   const accounts = activeAccounts(allAccounts)
@@ -210,7 +203,7 @@ export const HomePage: React.FC = () => {
           {t('home.title')}
         </h1>
         <button
-          onClick={() => setShowAddSheet(true)}
+          onClick={() => openAddSheet()}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors bg-[var(--color-accent)] text-[var(--color-bg)] hover:opacity-90"
         >
           <Plus size={16} />
@@ -601,27 +594,6 @@ export const HomePage: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* Floating Action Button (Mobile/Tablet only) */}
-      <button
-        id="fab-add-transaction"
-        onClick={() => setShowAddSheet(true)}
-        className="fab sm:hidden fixed z-30"
-        style={{
-          bottom: 'calc(env(safe-area-inset-bottom) + 5rem)',
-          right: '1.25rem',
-        }}
-        aria-label={t('home.addTransaction')}
-      >
-        <Plus size={24} strokeWidth={2.5} />
-      </button>
-
-      <AddTransactionSheet
-        isOpen={showAddSheet}
-        onClose={() => setShowAddSheet(false)}
-        prefilledCategory={searchParams.get('category') ?? undefined}
-        prefilledType={searchParams.get('type') === 'income' ? 'income' : 'expense'}
-      />
 
       <UpcomingSheet
         isOpen={showUpcoming}

@@ -4,14 +4,16 @@
     "tagline": "Xarajatlar hisobi"
   },
   "nav": {
-    "home": "Bosh sahifa",
+    "home": "Asosiy",
     "history": "Tarix",
     "reports": "Hisobotlar",
     "settings": "Sozlamalar",
     "sidebarLabel": "Yon navigatsiya",
     "mainLabel": "Asosiy navigatsiya",
     "accounts": "Hisoblar",
-    "wishlist": "Istaklar"
+    "wishlist": "Istaklar",
+    "stats": "Statistika",
+    "addEntry": "Yozuv qo'shish"
   },
   "onboarding": {
     "welcome": "Xarajatga xush kelibsiz",

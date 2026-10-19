@@ -1,0 +1,118 @@
+/* Xarajat redesign · design tokens
+   Generated from design/xarajat.css (the canvas's single source of truth).
+   Light values on :root, dark on .dark (Tailwind darkMode: "class") and on
+   [data-theme="dark"] so either switch works. Import once, before Tailwind's layers. */
+
+:root{
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;
+  --bg:#F5F5F7;
+  --surface:#FFFFFF;
+  --fill:rgba(118,118,128,.12);
+  --fill-2:rgba(118,118,128,.20);
+  --raised:#FFFFFF;
+  --line:rgba(0,0,0,.08);
+  --line-2:rgba(0,0,0,.14);
+  --ink:#1D1D1F;
+  --ink-2:#6E6E73;
+  --accent:#24503B;
+  --accent-hover:#1C4130;
+  --accent-text:#24503B;
+  --accent-ink:#FFFFFF;
+  --accent-soft:rgba(36,80,59,.10);
+  --in:#248A3D;
+  --in-soft:rgba(36,138,61,.10);
+  --warn:#B25000;
+  --warn-soft:rgba(255,149,0,.14);
+  --danger:#FF3B30;
+  --danger-text:#D70015;
+  --danger-fill:#D70015;
+  --danger-soft:rgba(255,59,48,.10);
+  --scrim:rgba(255,255,255,.10);
+  --blur:blur(30px) saturate(2.1) brightness(1.04);
+  --grain:.10;
+  --noise:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --tint:16%;
+  --hero:#24503B;
+  --hero-ink:#FFFFFF;
+  --hero-ink-2:rgba(255,255,255,.72);
+  --hero-tile:rgba(0,0,0,.16);
+  --hero-btn:rgba(255,255,255,.14);
+  --hero-in:#9BE7B0;
+  --hero-out:#F7BC9C;
+  --hero-grad:radial-gradient(120% 90% at 100% 0%,rgba(155,231,176,.30) 0%,rgba(155,231,176,0) 55%),linear-gradient(160deg,#2F6E50 0%,#24503B 48%,#15322A 100%);
+  --hero-shadow:0 16px 32px -20px rgba(21,50,42,.7);
+  --hero-alert:#FFC2BB;
+  --hero-alert-bg:rgba(255,59,48,.26);
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s6:24px; --s8:32px; --s12:48px; --s16:64px;
+  --r-ctl:12px;   /* buttons, inputs, chips, keys */
+  --r-card:20px;  /* cards, sheets, the balance block */
+  --r-pop:28px;   /* floating pop-ups */
+  --r-row:14px;   /* bordered rows inside pop-ups */
+  --r-full:999px; /* avatars, badges */
+  --sh-1:0 1px 2px rgba(0,0,0,.04);
+  --sh-2:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
+  --ease:160ms ease;
+  --glass:rgba(255,255,255,.62);
+  --glass-strong:rgba(250,250,252,.80);
+  --glass-blur:blur(22px) saturate(1.9) brightness(1.04);
+  --glass-hi:rgba(255,255,255,.95);
+  --glass-lo:rgba(255,255,255,.28);
+  --glass-in:inset 0 1px 0 rgba(255,255,255,.75),inset 0 -1px 0 rgba(0,0,0,.03),inset 0 0 0 .5px rgba(0,0,0,.05);
+  --glass-drop:0 12px 32px -12px rgba(16,24,20,.26),0 2px 6px -2px rgba(16,24,20,.10);
+  --viz-mark:var(--accent-text);
+  --viz-muted:#D1D1D6;
+  --viz-grid:rgba(0,0,0,.07);
+}
+
+.dark,[data-theme="dark"]{
+  --bg:#000000;
+  --surface:#1C1C1E;
+  --fill:rgba(118,118,128,.24);
+  --fill-2:rgba(118,118,128,.34);
+  --raised:#636366;
+  --line:rgba(255,255,255,.10);
+  --line-2:rgba(255,255,255,.18);
+  --ink:#F5F5F7;
+  --ink-2:#98989D;
+  --accent:#2F7A55;
+  --accent-hover:#378A61;
+  --accent-text:#6BBF92;
+  --accent-ink:#FFFFFF;
+  --accent-soft:rgba(107,191,146,.16);
+  --in:#30D158;
+  --in-soft:rgba(48,209,88,.16);
+  --warn:#FF9F0A;
+  --warn-soft:rgba(255,159,10,.18);
+  --danger:#FF453A;
+  --danger-text:#FF6961;
+  --danger-soft:rgba(255,69,58,.18);
+  --scrim:rgba(0,0,0,.30);
+  --blur:blur(30px) saturate(1.9) brightness(.72);
+  --grain:.11;
+  --tint:24%;
+  --hero:#1E3B2D;
+  --hero-grad:radial-gradient(120% 90% at 100% 0%,rgba(107,191,146,.24) 0%,rgba(107,191,146,0) 55%),linear-gradient(160deg,#27503F 0%,#1B382B 50%,#0E2019 100%);
+  --hero-shadow:0 16px 32px -20px rgba(0,0,0,.9);
+  --hero-tile:rgba(0,0,0,.24);
+  --hero-btn:rgba(255,255,255,.12);
+  --sh-1:0 1px 2px rgba(0,0,0,.4);
+  --sh-2:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.3);
+  --glass:rgba(48,48,52,.56);
+  --glass-strong:rgba(32,32,36,.78);
+  --glass-blur:blur(22px) saturate(1.7) brightness(.92);
+  --glass-hi:rgba(255,255,255,.36);
+  --glass-lo:rgba(255,255,255,.06);
+  --glass-in:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.30),inset 0 0 0 .5px rgba(255,255,255,.06);
+  --glass-drop:0 12px 32px -12px rgba(0,0,0,.8),0 2px 6px -2px rgba(0,0,0,.5);
+  --viz-muted:#3A3A3C;
+  --viz-grid:rgba(255,255,255,.08);
+}
+
+/* Glass inside the green balance block uses the "on-colour" tint. */
+.hero-surface{
+  --glass:rgba(255,255,255,.14);
+  --glass-hi:rgba(255,255,255,.70);
+  --glass-lo:rgba(255,255,255,.10);
+  --glass-in:inset 0 1px 0 rgba(255,255,255,.30),inset 0 -1px 0 rgba(0,0,0,.10);
+  --glass-drop:0 8px 20px -10px rgba(0,0,0,.45);
+}

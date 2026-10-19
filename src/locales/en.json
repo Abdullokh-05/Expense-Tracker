@@ -11,7 +11,9 @@
     "sidebarLabel": "Sidebar navigation",
     "mainLabel": "Main navigation",
     "accounts": "Accounts",
-    "wishlist": "Wishlist"
+    "wishlist": "Wishlist",
+    "stats": "Stats",
+    "addEntry": "Add entry"
   },
   "onboarding": {
     "welcome": "Welcome to Xarajat",
