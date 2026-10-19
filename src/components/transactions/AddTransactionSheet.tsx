@@ -68,6 +68,13 @@ function sizeClass(text: string): string {
   return text.length > 13 ? 'xlong' : text.length > 10 ? 'long' : ''
 }
 
+// A category tile is narrow: its longest word decides how small the name gets, so a word
+// like "Развлечения" stays whole instead of losing its last letter to the next line
+function nameSizeClass(name: string): string {
+  const longest = Math.max(...name.split(/\s+/).map((word) => word.length))
+  return longest > 10 ? ' xlong' : longest > 8 ? ' long' : ''
+}
+
 // Add or edit an entry: type an amount, then one tap on a category saves it. Transfers move
 // money between two accounts, converting when their currencies differ.
 export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
@@ -548,7 +555,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         <span className="bub" style={{ '--c': category.color } as React.CSSProperties} aria-hidden="true">
           {category.icon}
         </span>
-        <span className={`cat-name${getCategoryName(category, t).length > 11 ? ' long' : ''}`}>{getCategoryName(category, t)}</span>
+        <span className={`cat-name${nameSizeClass(getCategoryName(category, t))}`}>{getCategoryName(category, t)}</span>
       </button>
     )
   }
@@ -727,13 +734,20 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       ) : typed ? (
         <div className="save-row">
           {wide ? pills(false) : pills(true)}
-          <span className="grow" />
           {wide && (
-            <Button variant="secondary" onClick={close}>
-              {t('common.cancel')}
-            </Button>
+            <>
+              <span className="grow" />
+              <Button variant="secondary" onClick={close}>
+                {t('common.cancel')}
+              </Button>
+            </>
           )}
-          <Button onClick={() => handleSave(selectedCategoryId || suggestedCat?.id)} disabled={!hasValidAmount} loading={isLoading}>
+          <Button
+            className={wide ? undefined : 'fill'}
+            onClick={() => handleSave(selectedCategoryId || suggestedCat?.id)}
+            disabled={!hasValidAmount}
+            loading={isLoading}
+          >
             {saveLabel}
           </Button>
         </div>
