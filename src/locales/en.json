@@ -287,7 +287,8 @@
     "shortcutStep4": "The app will then run like a native one, without the browser bar.",
     "toggleTheme": "Switch theme",
     "darkTheme": "Dark theme",
-    "lightTheme": "Light theme"
+    "lightTheme": "Light theme",
+    "categoriesLimits": "Categories and limits"
   },
   "common": {
     "loading": "Loading...",
@@ -426,7 +427,23 @@
     "restore": "Restore",
     "limitLabel": "Limit {{amount}}",
     "showArchived": "Show archived ({{count}})",
-    "hideArchived": "Hide archived"
+    "hideArchived": "Hide archived",
+    "typeSavings": "Savings",
+    "countToward_one": "{{counted}} of {{count}} account counts toward it",
+    "countToward_other": "{{counted}} of {{count}} accounts count toward it",
+    "transferBetween": "Transfer between accounts",
+    "groupIn": "In the total",
+    "groupOff": "Not in the total",
+    "archivedGroup": "Archived",
+    "archivedOn": "{{currency}} · archived {{date}}",
+    "type": "Type",
+    "currency": "Currency",
+    "colour": "Colour",
+    "newSub": "It also shows up as a card on Home.",
+    "namePlaceholderNew": "For example, Kapital card",
+    "noRate": "No {{code}} rate yet, so this account won't count toward the total until you add one.",
+    "addRate": "Add a rate",
+    "added": "Account added"
   },
   "wishlist": {
     "title": "Wishlist",
@@ -552,5 +569,50 @@
     "guestHint": "You're in guest mode: everything stays on this device. Signing in to sync comes later.",
     "name": "Your name",
     "namePlaceholder": "What should we call you?"
+  },
+  "acct": {
+    "saveHint": "Changes save as you make them.",
+    "notInTotal": "not in the total",
+    "typeColour": "Type and colour",
+    "correct": "Correct balance",
+    "correctSub": "Match it to your bank app",
+    "correctLabel": "Balance right now, {{currency}}",
+    "correctHint": "The difference goes into the starting balance, so no entry is added to History.",
+    "correctSave": "Update balance",
+    "corrected": "Balance updated",
+    "default": "Default for new entries",
+    "currencyHint": "Can change until an entry uses this account",
+    "archive": "Archive account",
+    "archiveSub": "Keeps its history, hides the card",
+    "onlyAccount": "Your only account can't be archived",
+    "untitled": "Untitled account"
+  },
+  "colors": {
+    "blue": "Blue",
+    "green": "Green",
+    "gold": "Gold",
+    "red": "Red",
+    "violet": "Violet",
+    "grey": "Grey"
+  },
+  "rates": {
+    "title": "Exchange rates",
+    "updated": "Updated {{date}}",
+    "setByYou": "Set by you",
+    "usedFor": "used for {{names}}",
+    "unused": "no account uses it",
+    "missing": "No rate yet, not counted in the total",
+    "add": "Add a currency rate",
+    "note": "Foreign-currency accounts count toward the total at these rates.",
+    "editTitle": "{{name}} rate",
+    "editSub": "What 1 {{code}} is worth in {{base}}. Your rate is used instead of the live one until you go back to it.",
+    "live": "Live rate: {{rate}}",
+    "noLive": "There is no live rate for this currency.",
+    "rateLabel": "{{amount}} is worth",
+    "useLive": "Use live rate",
+    "currency": "Currency",
+    "saved": "Rate saved",
+    "removed": "Using the live rate again",
+    "invalid": "Enter the rate as a number above zero"
   }
 }

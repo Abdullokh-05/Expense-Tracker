@@ -123,6 +123,15 @@ export function roundMoney(amount: number, currency: string): number {
   return Math.round(amount * factor) / factor
 }
 
+// Parses what was typed into a money field: spaces, a comma for decimals and a minus are fine
+export function parseMoneyInput(text: string): number | null {
+  // \s covers the non-breaking spaces amounts are shown with
+  const cleaned = text.replace(/\s/g, '').replace('−', '-').replace(',', '.')
+  if (cleaned === '' || cleaned === '-') return null
+  const value = Number(cleaned)
+  return Number.isFinite(value) ? value : null
+}
+
 // What hidden amounts show instead of the number
 export const MASK = '••• •••'
 

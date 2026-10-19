@@ -14,6 +14,7 @@ import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from '@/components/ui/Toast'
+import { paymentMethodOf } from '@/lib/accounts'
 
 interface BuySheetProps {
   // The wish being bought; null keeps the sheet closed
@@ -117,7 +118,7 @@ export const BuySheet: React.FC<BuySheetProps> = ({ item, onClose }) => {
         noteOriginal: item.name,
         noteLanguage: null,
         translationConfidence: null,
-        paymentMethod: account.type,
+        paymentMethod: paymentMethodOf(account),
         recurringTransactionId: null,
       })
       await markBought()

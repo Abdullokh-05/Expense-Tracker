@@ -10,6 +10,7 @@ interface AccountStore {
   addAccount: (data: Omit<Account, 'id' | 'createdAt' | 'updatedAt' | 'synced'>) => Promise<Account>
   editAccount: (id: string, patch: Partial<Account>) => Promise<void>
   setWishlistFund: (id: string | null) => Promise<void>
+  setDefaultAccount: (id: string | null) => Promise<void>
 }
 
 export const useAccountStore = create<AccountStore>((set, get) => ({
@@ -48,6 +49,16 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
       const shouldBeFund = account.id === id
       if (account.isWishlistFund !== shouldBeFund) {
         await get().editAccount(account.id, { isWishlistFund: shouldBeFund })
+      }
+    }
+  },
+
+  // Only one account at a time is where new entries start; null clears it
+  setDefaultAccount: async (id) => {
+    for (const account of get().accounts) {
+      const shouldBeDefault = account.id === id
+      if (Boolean(account.isDefault) !== shouldBeDefault) {
+        await get().editAccount(account.id, { isDefault: shouldBeDefault })
       }
     }
   },

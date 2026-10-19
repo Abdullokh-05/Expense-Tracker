@@ -40,9 +40,11 @@ import {
   Play,
   Check,
   X,
+  Tags,
 } from 'lucide-react'
 import { toast } from '@/components/ui/Toast'
 import type { AppLanguage, AppTheme } from '@/types'
+import { Row, RowGroup } from '@/components/ui/Row'
 
 export const SettingsPage: React.FC = () => {
   const { t, i18n } = useTranslation()
@@ -289,6 +291,11 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       <div className="space-y-4">
+
+        {/* Categories moved here from Accounts; the rest of Settings is regrouped in the redesign */}
+        <RowGroup>
+          <Row icon={<Tags size={18} strokeWidth={1.75} />} title={t('settings.categoriesLimits')} chevron to="/settings/categories" />
+        </RowGroup>
 
         {/* Section: Account & Cloud Sync */}
         <div className="card p-5 space-y-4">

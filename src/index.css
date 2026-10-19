@@ -3,6 +3,7 @@
 @import "./styles/glass.css";
 @import "./styles/kit.css";
 @import "./styles/home.css";
+@import "./styles/accounts.css";
 
 /* =====================
    Tailwind theme: utilities named after the redesign tokens (bg-surface, text-ink-2,

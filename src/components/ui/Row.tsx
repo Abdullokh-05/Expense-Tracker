@@ -15,6 +15,8 @@ interface RowProps {
   end?: React.ReactNode
   // A chevron for rows that open something; 'open' turns it down for a row expanded in place
   chevron?: boolean | 'open'
+  // For a row that opens content under it: whether that content is showing
+  expanded?: boolean
   unread?: boolean
   danger?: boolean
   onClick?: () => void
@@ -32,6 +34,7 @@ export const Row: React.FC<RowProps> = ({
   value,
   end,
   chevron,
+  expanded,
   unread,
   danger,
   onClick,
@@ -73,7 +76,11 @@ export const Row: React.FC<RowProps> = ({
     return <Link id={id} to={to} className={classes}>{content}</Link>
   }
   if (onClick) {
-    return <button id={id} type="button" onClick={onClick} className={classes}>{content}</button>
+    return (
+      <button id={id} type="button" onClick={onClick} className={classes} aria-expanded={expanded}>
+        {content}
+      </button>
+    )
   }
   return <div id={id} className={classes}>{content}</div>
 }

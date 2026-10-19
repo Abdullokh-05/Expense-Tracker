@@ -21,7 +21,7 @@ import { NotificationsPopUp } from '@/components/home/NotificationsPopUp'
 import { UpcomingPopUp } from '@/components/home/UpcomingPopUp'
 import { SearchOverlay } from '@/components/home/SearchOverlay'
 import { ProfilePopUp } from '@/components/home/ProfilePopUp'
-import { AccountSheet } from '@/components/accounts/AccountSheet'
+import { AccountSettingsPopUp } from '@/components/accounts/AccountSettingsPopUp'
 import { useTransactionActions } from '@/components/transactions/useTransactionActions'
 
 type Panel = 'search' | 'notifications' | 'upcoming' | 'profile'
@@ -128,12 +128,7 @@ export const HomePage: React.FC = () => {
       />
       <SearchOverlay isOpen={panel === 'search'} onClose={closePanel} onEdit={onEdit} />
       <ProfilePopUp isOpen={panel === 'profile'} onClose={closePanel} />
-      <AccountSheet
-        isOpen={account !== null}
-        onClose={() => setAccount(null)}
-        account={account ?? undefined}
-        hasTransactions={account !== null && transactions.some((txn) => txn.accountId === account.id || txn.toAccountId === account.id)}
-      />
+      <AccountSettingsPopUp accountId={account?.id ?? null} onClose={() => setAccount(null)} />
 
       {dialogs}
     </div>

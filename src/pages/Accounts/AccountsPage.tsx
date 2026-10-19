@@ -1,221 +1,230 @@
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeftRight, Banknote, ChevronRight, CreditCard, EyeOff, PiggyBank, Plus } from 'lucide-react'
+import { Archive, ArrowLeftRight, Plus } from 'lucide-react'
+import type { Account } from '@/types'
 import { useAppStore } from '@/store/appStore'
 import { useAccountStore } from '@/store/accountStore'
-import { useCategoryStore } from '@/store/categoryStore'
 import { useTransactionStore } from '@/store/transactionStore'
-import { useBudgetStore } from '@/store/budgetStore'
-import { useConverter } from '@/store/ratesStore'
-import { formatAmount } from '@/lib/utils'
-import { getAccountBalances } from '@/lib/accounts'
-import { getCategoryKind, getCategoryName } from '@/lib/categories'
-import { AccountSheet } from '@/components/accounts/AccountSheet'
-import { CategorySheet } from '@/components/categories/CategorySheet'
+import { useRatesStore, useConverter } from '@/store/ratesStore'
 import { useUiStore } from '@/store/uiStore'
+import { getAccountBalances, sumBalances } from '@/lib/accounts'
+import { findCustomRate, formatRateLine, rateBetween } from '@/lib/rates'
+import { formatListAmount, formatShortDate, MASK, moneyParts } from '@/lib/utils'
+import { PageHeader, GlassIconButton } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
-import type { Account, Category, CategoryKind } from '@/types'
+import { Row } from '@/components/ui/Row'
+import { toast } from '@/components/ui/Toast'
+import { AccountCard, AccountIcon } from '@/components/accounts/AccountCard'
+import { AccountSettingsPopUp } from '@/components/accounts/AccountSettingsPopUp'
+import { NewAccountPopUp } from '@/components/accounts/NewAccountPopUp'
+import { RatePopUp } from '@/components/accounts/RatePopUp'
 
+// Opened from the Total balance card: every account, grouped by whether it counts toward
+// the total, the archived ones, and the exchange rates foreign accounts are counted at
 export const AccountsPage: React.FC = () => {
-  const { t } = useTranslation()
-  const { settings } = useAppStore()
+  const { t, i18n } = useTranslation()
+  const settings = useAppStore((s) => s.settings)
   const allAccounts = useAccountStore((s) => s.accounts)
-  const categories = useCategoryStore((s) => s.categories)
+  const editAccount = useAccountStore((s) => s.editAccount)
   const transactions = useTransactionStore((s) => s.transactions)
-  const budgets = useBudgetStore((s) => s.budgets)
-  const convert = useConverter()
-
-  // undefined = closed, null = adding a new one, otherwise the one being edited
-  const [accountSheet, setAccountSheet] = useState<Account | null | undefined>(undefined)
-  const [categorySheet, setCategorySheet] = useState<Category | null | undefined>(undefined)
+  const liveRates = useRatesStore((s) => s.rates)
+  const ratesUpdatedAt = useRatesStore((s) => s.updatedAt)
+  const masked = useUiStore((s) => s.amountsHidden)
   const openAddSheet = useUiStore((s) => s.openAddSheet)
-  const [kind, setKind] = useState<CategoryKind>('expense')
-  const [showArchived, setShowArchived] = useState(false)
+  const convert = useConverter()
+  const base = settings.baseCurrency
+
+  const [settingsFor, setSettingsFor] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  // undefined = closed, null = pick a currency, otherwise that currency's rate
+  const [rateFor, setRateFor] = useState<string | null | undefined>(undefined)
+  const [archiveOpen, setArchiveOpen] = useState(false)
 
   const balances = useMemo(
-    () => getAccountBalances(allAccounts, transactions, settings.baseCurrency, convert),
-    [allAccounts, transactions, settings.baseCurrency, convert]
+    () => getAccountBalances(allAccounts, transactions, base, convert),
+    [allAccounts, transactions, base, convert]
   )
+  const active = allAccounts.filter((a) => !a.isArchived)
+  const counted = active.filter((a) => a.includeInTotal)
+  const apart = active.filter((a) => !a.includeInTotal)
+  const archived = allAccounts.filter((a) => a.isArchived)
+  const total = sumBalances(counted, balances, base, convert)
+  const apartTotal = sumBalances(apart, balances, base, convert)
+  const totalParts = moneyParts(total.total, base)
 
-  const accounts = allAccounts.filter((a) => !a.isArchived)
-  const archivedAccounts = allAccounts.filter((a) => a.isArchived)
-  const kindCategories = categories.filter((c) => getCategoryKind(c) === kind)
-  const shownCategories = kindCategories.filter((c) => !c.isArchived)
-  const archivedCategories = kindCategories.filter((c) => c.isArchived)
-  const archivedCount = archivedAccounts.length + archivedCategories.length
+  const groups: { key: string; label: string; sum: number; items: Account[] }[] = [
+    { key: 'in', label: t('accounts.groupIn'), sum: total.total, items: counted },
+    { key: 'off', label: t('accounts.groupOff'), sum: apartTotal.total, items: apart },
+  ]
 
-  const hasTransactions = (account: Account) =>
-    transactions.some((txn) => txn.accountId === account.id || txn.toAccountId === account.id)
+  // ── Exchange rates: every foreign currency an account uses, and any the user set by hand ──
+  const rateCodes = [
+    ...new Set([
+      ...active.map((a) => a.currency),
+      ...(settings.customRates ?? []).filter((r) => r.quote === base).map((r) => r.code),
+    ]),
+  ].filter((code) => code !== base)
 
-  const renderAccount = (account: Account) => {
-    const balance = balances[account.id] ?? 0
-    const inBase = account.currency === settings.baseCurrency
-      ? null
-      : convert(balance, account.currency, settings.baseCurrency)
-    return (
-      <button
-        key={account.id}
-        onClick={() => setAccountSheet(account)}
-        className="card p-4 text-left w-full flex items-center justify-between gap-3"
-        style={{ background: 'var(--color-surface)', opacity: account.isArchived ? 0.6 : 1 }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-[var(--color-surface-2)] flex items-center justify-center shrink-0 text-[var(--color-text-secondary)]">
-            {account.type === 'cash' ? <Banknote size={18} /> : <CreditCard size={18} />}
-          </div>
-          <div className="min-w-0">
-            <span className="text-sm font-bold block truncate" style={{ color: 'var(--color-text-primary)' }}>
-              {account.name}
-            </span>
-            <span className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-              {account.isWishlistFund && (
-                <span className="flex items-center gap-1"><PiggyBank size={11} /> {t('accounts.wishlistFundBadge')}</span>
-              )}
-              {!account.includeInTotal && (
-                <span className="flex items-center gap-1"><EyeOff size={11} /> {t('accounts.notCounted')}</span>
-              )}
-              {!account.isWishlistFund && account.includeInTotal && (
-                <span>{account.type === 'cash' ? t('accounts.typeCash') : t('accounts.typeCard')}</span>
-              )}
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="text-right">
-            <div className="text-sm font-bold amount-display" style={{ color: balance < 0 ? 'var(--color-expense)' : 'var(--color-text-primary)' }}>
-              {formatAmount(balance, account.currency)}
-            </div>
-            {inBase !== null && (
-              <div className="text-[10px] amount-display" style={{ color: 'var(--color-text-muted)' }}>
-                ≈ {formatAmount(inBase, settings.baseCurrency)}
-              </div>
-            )}
-          </div>
-          <ChevronRight size={16} className="text-[var(--color-text-muted)]" />
-        </div>
-      </button>
-    )
-  }
-
-  const renderCategory = (category: Category) => {
-    const limit = budgets.find((b) => b.categoryId === category.id)?.monthlyLimit ?? 0
-    return (
-      <button
-        key={category.id}
-        onClick={() => setCategorySheet(category)}
-        className="w-full flex items-center justify-between gap-3 p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-left"
-        style={{ opacity: category.isArchived ? 0.6 : 1 }}
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: category.color }} />
-          <span className="text-xl leading-none">{category.icon}</span>
-          <span className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
-            {getCategoryName(category, t)}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {limit > 0 && (
-            <span className="text-[11px] amount-display" style={{ color: 'var(--color-text-muted)' }}>
-              {t('accounts.limitLabel', { amount: formatAmount(limit, settings.baseCurrency) })}
-            </span>
-          )}
-          <ChevronRight size={16} className="text-[var(--color-text-muted)]" />
-        </div>
-      </button>
-    )
+  const restore = async (account: Account) => {
+    try {
+      await editAccount(account.id, { isArchived: false })
+      toast.success(t('accounts.restored'))
+    } catch {
+      toast.error(t('common.error'))
+    }
   }
 
   return (
-    <div className="space-y-6">
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-bold serif-heading" style={{ color: 'var(--color-text-primary)' }}>
-            {t('accounts.title')}
-          </h1>
-          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('accounts.subtitle')}
-          </p>
+    <div className="flex flex-col gap-6 w-full max-w-[640px] mx-auto">
+      <PageHeader
+        title={t('accounts.title')}
+        back={{ label: t('nav.home'), to: '/' }}
+        action={
+          <GlassIconButton label={t('accounts.newTitle')} onClick={() => setAdding(true)}>
+            <Plus size={22} strokeWidth={1.75} />
+          </GlassIconButton>
+        }
+      >
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-baseline gap-1.5 flex-wrap">
+            {masked ? (
+              <span className="sum-amt masked">{MASK}</span>
+            ) : (
+              <>
+                <span className="sum-amt">
+                  {totalParts.sign}
+                  {totalParts.symbolBefore && totalParts.symbol}
+                  {totalParts.number}
+                </span>
+                {!totalParts.symbolBefore && <span className="t-label">{totalParts.symbol}</span>}
+              </>
+            )}
+          </span>
+          <span className="t-sub">
+            {total.complete
+              ? t('accounts.countToward', { counted: counted.length, count: active.length })
+              : t('home.rateMissingShort')}
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button id="transfer-btn" variant="secondary" size="sm" onClick={() => openAddSheet({ type: 'transfer' })} disabled={accounts.length < 2}>
-            <ArrowLeftRight size={14} /> {t('transaction.transfer')}
-          </Button>
-          <Button id="add-account-btn" size="sm" onClick={() => setAccountSheet(null)}>
-            <Plus size={14} /> {t('accounts.add')}
-          </Button>
-        </div>
-      </div>
+      </PageHeader>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <Button
+        variant="secondary"
+        fullWidth
+        disabled={active.length < 2}
+        onClick={() => openAddSheet({ type: 'transfer' })}
+      >
+        <ArrowLeftRight size={18} strokeWidth={1.75} aria-hidden="true" />
+        {t('accounts.transferBetween')}
+      </Button>
 
-        {/* ── ACCOUNTS ── */}
-        <div className="lg:col-span-6 space-y-3">
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)] uppercase tracking-wider">
-            {t('accounts.accountsSection')}
-          </h2>
-          <div className="space-y-2">{accounts.map(renderAccount)}</div>
-          {showArchived && archivedAccounts.length > 0 && (
-            <div className="space-y-2">{archivedAccounts.map(renderAccount)}</div>
+      {groups
+        .filter((group) => group.items.length > 0)
+        .map((group) => (
+          <section key={group.key} className="flex flex-col gap-2" aria-label={group.label}>
+            <div className="sec-head">
+              <span className="t-over">{group.label}</span>
+              {!masked && <span className="num">{formatListAmount(group.sum, base, base)}</span>}
+            </div>
+            <div className="cards">
+              {group.items.map((account) => (
+                <AccountCard
+                  key={account.id}
+                  account={account}
+                  balance={balances[account.id] ?? 0}
+                  baseCurrency={base}
+                  convert={convert}
+                  masked={masked}
+                  size="sm"
+                  onClick={() => setSettingsFor(account.id)}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+
+      {archived.length > 0 && (
+        <div className="pbox">
+          <Row
+            icon={<Archive size={18} strokeWidth={1.75} />}
+            title={t('accounts.archivedGroup')}
+            value={archived.length}
+            chevron={archiveOpen ? 'open' : true}
+            expanded={archiveOpen}
+            onClick={() => setArchiveOpen(!archiveOpen)}
+            className="[&_.prow-ico]:bg-fill [&_.prow-ico]:text-ink"
+          />
+          {archiveOpen && (
+            <div className="pbox-exp pt-0">
+              {archived.map((account) => (
+                <div key={account.id} className="arc-row">
+                  <span className="prow-ico plain" aria-hidden="true">
+                    <AccountIcon account={account} />
+                  </span>
+                  <span className="prow-main">
+                    <span className="prow-title">
+                      <span>{account.name}</span>
+                    </span>
+                    <span className="prow-sub">
+                      {t('accounts.archivedOn', {
+                        currency: account.currency,
+                        date: formatShortDate(account.updatedAt.slice(0, 10), i18n.language),
+                      })}
+                    </span>
+                  </span>
+                  <Button variant="tinted" size="sm" onClick={() => restore(account)}>
+                    {t('accounts.restore')}
+                  </Button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-
-        {/* ── CATEGORIES ── */}
-        <div className="lg:col-span-6 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-[var(--color-text-primary)] uppercase tracking-wider">
-              {t('categories.title')}
-            </h2>
-            <Button id="add-category-btn" variant="secondary" size="sm" onClick={() => setCategorySheet(null)}>
-              <Plus size={14} /> {t('common.add')}
-            </Button>
-          </div>
-
-          <div className="flex p-0.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]">
-            {(['expense', 'income'] as CategoryKind[]).map((k) => (
-              <button
-                key={k}
-                id={`category-kind-${k}`}
-                onClick={() => setKind(k)}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  kind === k ? 'bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'
-                }`}
-              >
-                {k === 'expense' ? t('home.outcome') : t('home.income')}
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-2">{shownCategories.map(renderCategory)}</div>
-          {showArchived && archivedCategories.length > 0 && (
-            <div className="space-y-2">{archivedCategories.map(renderCategory)}</div>
-          )}
-        </div>
-      </div>
-
-      {archivedCount > 0 && (
-        <button
-          onClick={() => setShowArchived(!showArchived)}
-          className="text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:underline"
-        >
-          {showArchived ? t('accounts.hideArchived') : t('accounts.showArchived', { count: archivedCount })}
-        </button>
       )}
 
-      <AccountSheet
-        isOpen={accountSheet !== undefined}
-        onClose={() => setAccountSheet(undefined)}
-        account={accountSheet ?? undefined}
-        hasTransactions={accountSheet ? hasTransactions(accountSheet) : false}
-      />
+      <section className="flex flex-col gap-2" aria-label={t('rates.title')}>
+        <div className="sec-head">
+          <span className="t-over">{t('rates.title')}</span>
+        </div>
+        <div className="plist">
+          {rateCodes.map((code) => {
+            const custom = findCustomRate(settings.customRates, code, base)
+            const live = rateBetween(liveRates, code, base)
+            const rate = custom?.rate ?? live
+            const users = active.filter((a) => a.currency === code).map((a) => a.name)
+            const source = custom
+              ? t('rates.setByYou')
+              : live
+                ? ratesUpdatedAt
+                  ? t('rates.updated', { date: formatShortDate(ratesUpdatedAt.slice(0, 10), i18n.language) })
+                  : null
+                : t('rates.missing')
+            return (
+              <Row
+                key={code}
+                icon={<span className="cbadge">{code}</span>}
+                className="[&_.prow-ico]:bg-fill"
+                title={<span className="num">{rate ? formatRateLine(code, base, rate) : code}</span>}
+                subtitle={[source, users.length ? t('rates.usedFor', { names: users.join(', ') }) : t('rates.unused')]
+                  .filter(Boolean)
+                  .join(' · ')}
+                chevron
+                onClick={() => setRateFor(code)}
+              />
+            )
+          })}
+          <Row icon={<Plus size={18} strokeWidth={1.75} />} title={t('rates.add')} chevron onClick={() => setRateFor(null)} />
+        </div>
+        <p className="t-cap px-1">{t('rates.note')}</p>
+      </section>
 
-      <CategorySheet
-        isOpen={categorySheet !== undefined}
-        onClose={() => setCategorySheet(undefined)}
-        category={categorySheet ?? undefined}
-        kind={categorySheet ? getCategoryKind(categorySheet) : kind}
+      <AccountSettingsPopUp accountId={settingsFor} onClose={() => setSettingsFor(null)} />
+      <NewAccountPopUp
+        isOpen={adding}
+        onClose={() => setAdding(false)}
+        onAddRate={(code) => setRateFor(code)}
       />
+      <RatePopUp isOpen={rateFor !== undefined} onClose={() => setRateFor(undefined)} code={rateFor ?? null} />
     </div>
   )
 }

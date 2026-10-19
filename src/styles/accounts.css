@@ -1,0 +1,42 @@
+/* Xarajat · Accounts: compact account cards, exchange rates and the account pop-ups.
+   Ported from the redesign's xarajat.css (section 11). The dark card itself is in home.css. */
+@layer components {
+  .sum-amt { font-size: 22px; line-height: 1.25; font-weight: 600; letter-spacing: -.015em; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+  .sec-head .num { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+
+  /* the compact card in the Accounts list */
+  .cards { display: flex; flex-direction: column; gap: 8px; }
+  .bcard.sm { min-height: 0; gap: 16px; padding: 14px 16px 16px; }
+  .bcard-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; min-width: 0; }
+  .bcard-row .bcard-amt { margin-top: 0; }
+  .bcard-row .bcard-foot { flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 4px; min-height: 0; text-align: right; flex: none; }
+  .money-l { font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .money-l.long { font-size: 22px; }
+  .money-l.masked { letter-spacing: .12em; }
+
+  /* currency code badge */
+  .cbadge { display: inline-grid; place-items: center; min-width: 36px; height: 22px; padding: 0 4px; border-radius: 6px; background: var(--ink); color: var(--bg); font-size: 12px; line-height: 1; font-weight: 700; letter-spacing: .02em; flex: none; }
+  .prow-ico .cbadge { min-width: 30px; }
+  .prow-ico.plain { background: var(--fill); color: var(--ink); }
+
+  /* inline warning */
+  .note { display: flex; align-items: flex-start; gap: 8px; padding: 12px; border-radius: 12px; background: var(--warn-soft); font-size: 14px; line-height: 1.4; color: var(--ink); }
+  .note > svg { color: var(--warn); margin-top: 1px; flex: none; }
+  .note button, .note a { color: var(--accent-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+  /* colour swatches: 28 px dots in 44 px targets */
+  .swatches { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 -8px; }
+  .swatch { position: relative; width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center; transition: transform var(--ease); }
+  .swatch::before { content: ""; width: 28px; height: 28px; border-radius: 999px; background: var(--c); }
+  .swatch.on::after { content: ""; position: absolute; inset: 4px; border-radius: 999px; box-shadow: 0 0 0 2px var(--c); }
+  .swatch:active { transform: scale(.94); }
+
+  /* a select dressed as an input, with the currency badge in front */
+  .input.picker { position: relative; gap: 12px; }
+  .input.picker select { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 24px; }
+  .input.picker > svg { position: absolute; right: 14px; color: var(--ink-2); pointer-events: none; }
+  .input .suffix { color: var(--ink-2); font-size: 15px; font-weight: 500; flex: none; }
+
+  /* archived accounts open under their row */
+  .arc-row { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+}

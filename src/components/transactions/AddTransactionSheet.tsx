@@ -13,10 +13,12 @@ import { useConverter, useRatesStore } from '@/store/ratesStore'
 import { suggestCategory } from '@/db/operations'
 import { getCategoryKind, getCategoryName } from '@/lib/categories'
 import { advanceByFrequency, formatAmount, roundMoney, todayDate } from '@/lib/utils'
-import { Calendar, FileText, Repeat, ChevronDown, Trash2, Banknote, CreditCard, BookmarkPlus, X } from 'lucide-react'
+import { Calendar, FileText, Repeat, ChevronDown, Trash2, BookmarkPlus, X } from 'lucide-react'
 import type { Account, Transaction, TransactionTemplate, TransactionType, Category, RecurringFrequency } from '@/types'
 import { ToggleRow } from '@/components/ui/ToggleRow'
 import { toast } from '@/components/ui/Toast'
+import { paymentMethodOf } from '@/lib/accounts'
+import { AccountIcon } from '@/components/accounts/AccountCard'
 
 interface AddTransactionSheetProps {
   isOpen: boolean
@@ -61,7 +63,7 @@ const AccountPicker: React.FC<AccountPickerProps> = ({ label, accounts, selected
               color: selected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
             }}
           >
-            {account.type === 'cash' ? <Banknote size={14} /> : <CreditCard size={14} />}
+            <AccountIcon account={account} size={14} />
             <span>{account.name}</span>
             <span style={{ color: 'var(--color-text-muted)' }}>{account.currency}</span>
           </button>
@@ -133,8 +135,13 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     if (isOpen) {
       const active = allAccounts.filter((a) => !a.isArchived)
       const remembered = localStorage.getItem(LAST_ACCOUNT_KEY)
+      // The account marked "default for new entries" wins over the one used last time
       const firstAccount =
-        transaction?.accountId ?? active.find((a) => a.id === remembered)?.id ?? active[0]?.id ?? ''
+        transaction?.accountId ??
+        active.find((a) => a.isDefault)?.id ??
+        active.find((a) => a.id === remembered)?.id ??
+        active[0]?.id ??
+        ''
 
       setType(transaction?.type ?? prefilledType)
       setAmount(transaction ? String(transaction.amount) : '')
@@ -254,7 +261,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         date,
         note: note.trim() || null,
         noteOriginal: note.trim() || null,
-        paymentMethod: account.type,
+        paymentMethod: paymentMethodOf(account),
       }
 
       if (transaction) {
@@ -362,7 +369,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         noteOriginal: template.note,
         noteLanguage: null,
         translationConfidence: null,
-        paymentMethod: templateAccount.type,
+        paymentMethod: paymentMethodOf(templateAccount),
         recurringTransactionId: null,
       })
       toast.success(t('settings.saved'))

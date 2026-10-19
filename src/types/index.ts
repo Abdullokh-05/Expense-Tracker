@@ -2,7 +2,7 @@
 
 // A transfer moves money between two accounts; it is neither income nor an expense
 export type TransactionType = 'expense' | 'income' | 'transfer'
-export type AccountType = 'cash' | 'card'
+export type AccountType = 'cash' | 'card' | 'savings'
 export type CategoryKind = 'expense' | 'income'
 // 3 is the most important
 export type WishImportance = 1 | 2 | 3
@@ -80,6 +80,10 @@ export interface Account {
   includeInTotal: boolean
   // The one account whose money is being saved up for the wishlist
   isWishlistFund: boolean
+  // The card colour; accounts made before colours existed use their type's colour
+  color?: string
+  // The one account new entries start on
+  isDefault?: boolean
   isArchived: boolean
   createdAt: string
   updatedAt: string
@@ -213,12 +217,26 @@ export interface SyncQueueItem {
 }
 
 // =====================
+// Exchange rates
+// =====================
+// A rate the user set by hand; it wins over the live one. 1 `code` is worth `rate` units of
+// `quote` (the main currency at the time it was set).
+export interface CustomRate {
+  code: string
+  quote: string
+  rate: number
+  setAt: string
+}
+
+// =====================
 // App Settings
 // =====================
 export interface AppSettings {
   userId: string
   // What the home screen greets the user by; empty until they set it
   displayName?: string
+  // Exchange rates set by hand (Accounts › Exchange rates)
+  customRates?: CustomRate[]
   baseCurrency: string
   language: AppLanguage
   theme: AppTheme

@@ -1,11 +1,10 @@
 import React, { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Banknote, ChevronRight, CreditCard, Ellipsis, Eye, EyeOff, PiggyBank } from 'lucide-react'
+import { ChevronRight, Eye, EyeOff } from 'lucide-react'
 import type { Account } from '@/types'
 import type { Converter } from '@/lib/accounts'
-import { accountColor, accountLook } from '@/lib/accounts'
-import { formatAmount, MASK, moneyParts } from '@/lib/utils'
+import { AccountCard, BigMoney } from '@/components/accounts/AccountCard'
 
 interface CardCarouselProps {
   // Accounts in display order, archived ones already left out
@@ -18,26 +17,6 @@ interface CardCarouselProps {
   onToggleMasked: () => void
   onOpenAccount: (account: Account) => void
 }
-
-// Long amounts step down a size instead of wrapping
-function sizeClass(text: string): string {
-  return text.length > 12 ? 'xlong' : text.length > 10 ? 'long' : ''
-}
-
-// A big amount: prefix symbols ($) sit in the number, suffix ones (soʻm) follow it smaller
-const BigMoney: React.FC<{ amount: number; currency: string; masked: boolean }> = ({ amount, currency, masked }) => {
-  if (masked) return <span className="money-xl masked">{MASK}</span>
-  const parts = moneyParts(amount, currency)
-  const text = parts.sign + (parts.symbolBefore ? parts.symbol : '') + parts.number
-  return (
-    <span className="flex items-baseline min-w-0">
-      <span className={`money-xl ${sizeClass(text)}`}>{text}</span>
-      {!parts.symbolBefore && <span className="cur">{parts.symbol}</span>}
-    </span>
-  )
-}
-
-const LOOK_ICONS = { card: CreditCard, cash: Banknote, savings: PiggyBank }
 
 // The dark cards in the balance block: Total balance first, then one per account.
 // Swipe sideways (or use the dots) to move between them.
@@ -160,7 +139,7 @@ export const CardCarousel: React.FC<CardCarouselProps> = ({
               </button>
             </div>
             <div className="bcard-amt">
-              <BigMoney amount={total.total} currency={baseCurrency} masked={masked} />
+              <BigMoney amount={total.total} currency={baseCurrency} masked={masked} size="xl" />
             </div>
             <div className="bcard-foot">
               <span className={total.complete ? '' : 'warn'}>{scope}</span>
@@ -170,58 +149,20 @@ export const CardCarousel: React.FC<CardCarouselProps> = ({
             </div>
           </div>
 
-          {accounts.map((account, i) => {
-            const balance = balances[account.id] ?? 0
-            const look = accountLook(account)
-            const Icon = LOOK_ICONS[look]
-            const off = !account.includeInTotal
-            const shown = current === i + 1
-            const inBase = account.currency === baseCurrency ? null : convert(balance, account.currency, baseCurrency)
-            const kind = look === 'savings' ? t('home.kindSavings') : t(look === 'cash' ? 'accounts.typeCash' : 'accounts.typeCard')
-            const label = [
-              account.name,
-              masked ? t('home.amountHidden') : formatAmount(balance, account.currency),
-              off ? t('accounts.notCounted') : null,
-              `(${position(i + 2)})`,
-              t('home.openAccountSettings'),
-            ]
-              .filter(Boolean)
-              .join(', ')
-            return (
-              <button
-                key={account.id}
-                type="button"
-                className={`bcard${off ? ' off' : ''}`}
-                style={{ '--c': accountColor(account) } as React.CSSProperties}
-                aria-label={label}
-                aria-hidden={!shown}
-                tabIndex={shown ? 0 : -1}
-                onClick={() => onOpenAccount(account)}
-              >
-                <span className="bcard-top">
-                  <span className="bcard-name">
-                    <span className="bcard-ico">
-                      <Icon size={18} strokeWidth={1.75} />
-                    </span>
-                    <span>{account.name}</span>
-                  </span>
-                  <span className="bcard-more" aria-hidden="true">
-                    <Ellipsis size={18} strokeWidth={1.75} />
-                  </span>
-                </span>
-                <span className="bcard-amt">
-                  <BigMoney amount={balance} currency={account.currency} masked={masked} />
-                  {inBase !== null && !masked && (
-                    <span className="amt-sub">≈ {formatAmount(inBase, baseCurrency)}</span>
-                  )}
-                </span>
-                <span className="bcard-foot">
-                  <span>{`${kind} · ${account.currency}`}</span>
-                  {off && <span className="btag">{t('accounts.notCounted')}</span>}
-                </span>
-              </button>
-            )
-          })}
+          {accounts.map((account, i) => (
+            <AccountCard
+              key={account.id}
+              account={account}
+              balance={balances[account.id] ?? 0}
+              baseCurrency={baseCurrency}
+              convert={convert}
+              masked={masked}
+              size="lg"
+              hidden={current !== i + 1}
+              position={position(i + 2)}
+              onClick={() => onOpenAccount(account)}
+            />
+          ))}
         </div>
       </div>
 

@@ -2,6 +2,8 @@ import { db } from '@/db/schema'
 import { addToSyncQueue } from '@/db/operations'
 import type { ExchangeRate } from '@/types'
 import { nowISO, roundMoney } from '@/lib/utils'
+import { rateBetween, withCustomRates } from '@/lib/rates'
+import { useAppStore } from '@/store/appStore'
 
 const API_URL = 'https://open.er-api.com/v6/latest'
 const MAX_AGE_MS = 1000 * 60 * 60 * 24 // 24 hours
@@ -56,10 +58,8 @@ export async function getConversionRate(fromCurrency: string, toCurrency: string
   if (fromCurrency === toCurrency) return 1
 
   const rates = await fetchExchangeRates()
-  const from = rates?.[fromCurrency]
-  const to = rates?.[toCurrency]
-  // 1 USD = `from` units of fromCurrency = `to` units of toCurrency
-  return from && to ? to / from : null
+  // A rate the user set by hand wins over the live one
+  return rateBetween(withCustomRates(rates, useAppStore.getState().settings.customRates), fromCurrency, toCurrency)
 }
 
 // Re-express every stored base-currency amount (transactions and budget limits) in a new base

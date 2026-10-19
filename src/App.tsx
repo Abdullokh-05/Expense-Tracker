@@ -7,6 +7,7 @@ import { BreakdownPage } from '@/pages/Breakdown/BreakdownPage'
 import { AccountsPage } from '@/pages/Accounts/AccountsPage'
 import { WishlistPage } from '@/pages/Wishlist/WishlistPage'
 import { SettingsPage } from '@/pages/Settings/SettingsPage'
+import { CategoriesPage } from '@/pages/Categories/CategoriesPage'
 import { useAppStore } from '@/store/appStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { useRecurringStore } from '@/store/recurringStore'
@@ -84,6 +85,7 @@ export const App: React.FC = () => {
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/wishlist" element={<WishlistPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/categories" element={<CategoriesPage />} />
         {KitPage && (
           <Route path="/kit" element={<Suspense fallback={null}><KitPage /></Suspense>} />
         )}

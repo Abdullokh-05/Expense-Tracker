@@ -1,4 +1,5 @@
-import type { Account, Transaction } from '@/types'
+import type { Account, AccountType, PaymentMethod, Transaction } from '@/types'
+import type { TFunction } from 'i18next'
 import { roundMoney } from '@/lib/utils'
 
 // Converts an amount between currencies at today's rates; null when no rate is known
@@ -73,14 +74,25 @@ export function activeAccounts(accounts: Account[]): Account[] {
   return accounts.filter((account) => !account.isArchived)
 }
 
-// How an account card looks: savings for the wishlist fund, otherwise its type
-export type AccountLook = 'card' | 'cash' | 'savings'
-
-export function accountLook(account: Account): AccountLook {
-  return account.isWishlistFund ? 'savings' : account.type
+// How an account card looks: its type, except a wishlist fund made before accounts had their
+// own type and colour, which still looks like savings
+export function accountLook(account: Account): AccountType {
+  if (account.type !== 'savings' && account.isWishlistFund && !account.color) return 'savings'
+  return account.type
 }
 
-const LOOK_COLORS: Record<AccountLook, string> = {
+// The colours an account can take, in the order the pickers show them
+export const ACCOUNT_COLORS = [
+  { color: '#3F7CC4', key: 'blue' },
+  { color: '#3E9A62', key: 'green' },
+  { color: '#C08A2E', key: 'gold' },
+  { color: '#C4553F', key: 'red' },
+  { color: '#7B5CC4', key: 'violet' },
+  { color: '#7C7C84', key: 'grey' },
+] as const
+
+// Each type's colour, for accounts made before they had their own
+export const TYPE_COLORS: Record<AccountType, string> = {
   card: '#3F7CC4',
   cash: '#3E9A62',
   savings: '#C08A2E',
@@ -88,5 +100,15 @@ const LOOK_COLORS: Record<AccountLook, string> = {
 
 // The colour that tints an account's card and icon
 export function accountColor(account: Account): string {
-  return LOOK_COLORS[accountLook(account)]
+  return account.color ?? TYPE_COLORS[accountLook(account)]
+}
+
+// The older per-entry field that only knows cash and card; savings accounts count as card
+export function paymentMethodOf(account: Account): PaymentMethod {
+  return account.type === 'cash' ? 'cash' : 'card'
+}
+
+// "Card", "Cash" or "Savings" in the UI language
+export function accountTypeLabel(type: AccountType, t: TFunction): string {
+  return t(type === 'cash' ? 'accounts.typeCash' : type === 'savings' ? 'accounts.typeSavings' : 'accounts.typeCard')
 }

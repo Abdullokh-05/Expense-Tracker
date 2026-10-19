@@ -287,7 +287,8 @@
     "shortcutStep4": "Ilova brauzer satrisiz, oddiy ilova kabi ishlaydi.",
     "toggleTheme": "Mavzuni almashtirish",
     "darkTheme": "Qorong'i mavzu",
-    "lightTheme": "Yorug' mavzu"
+    "lightTheme": "Yorug' mavzu",
+    "categoriesLimits": "Kategoriyalar va limitlar"
   },
   "common": {
     "loading": "Yuklanmoqda...",
@@ -426,7 +427,23 @@
     "restore": "Tiklash",
     "limitLabel": "Limit {{amount}}",
     "showArchived": "Arxivni ko'rsatish ({{count}})",
-    "hideArchived": "Arxivni yashirish"
+    "hideArchived": "Arxivni yashirish",
+    "typeSavings": "Jamg'arma",
+    "countToward_one": "{{count}} ta hisobdan {{counted}} tasi hisoblanadi",
+    "countToward_other": "{{count}} ta hisobdan {{counted}} tasi hisoblanadi",
+    "transferBetween": "Hisoblar orasida o'tkazma",
+    "groupIn": "Umumiy balansda",
+    "groupOff": "Balansda emas",
+    "archivedGroup": "Arxiv",
+    "archivedOn": "{{currency}} · {{date}} dan arxivda",
+    "type": "Turi",
+    "currency": "Valyuta",
+    "colour": "Rang",
+    "newSub": "U asosiy sahifada karta bo'lib ham chiqadi.",
+    "namePlaceholderNew": "Masalan, Kapital karta",
+    "noRate": "{{code}} kursi hali yo'q, shuning uchun kursni qo'shmaguningizcha hisob umumiy balansga kirmaydi.",
+    "addRate": "Kurs qo'shish",
+    "added": "Hisob qo'shildi"
   },
   "wishlist": {
     "title": "Istaklar",
@@ -552,5 +569,50 @@
     "guestHint": "Siz mehmon rejimidasiz: hammasi shu qurilmada saqlanadi. Kirish va sinxronlash keyinroq qo'shiladi.",
     "name": "Ismingiz",
     "namePlaceholder": "Sizni qanday chaqiraylik?"
+  },
+  "acct": {
+    "saveHint": "O'zgarishlar darhol saqlanadi.",
+    "notInTotal": "balansda emas",
+    "typeColour": "Turi va rangi",
+    "correct": "Balansni to'g'rilash",
+    "correctSub": "Bank ilovasi bilan tenglashtiring",
+    "correctLabel": "Hozirgi balans, {{currency}}",
+    "correctHint": "Farq boshlang'ich balansga qo'shiladi, tarixga yozuv tushmaydi.",
+    "correctSave": "Balansni yangilash",
+    "corrected": "Balans yangilandi",
+    "default": "Yangi yozuvlar uchun asosiy",
+    "currencyHint": "Hisobda yozuv bo'lmaguncha o'zgartirish mumkin",
+    "archive": "Hisobni arxivlash",
+    "archiveSub": "Tarixi saqlanadi, karta yashiriladi",
+    "onlyAccount": "Yagona hisobni arxivlab bo'lmaydi",
+    "untitled": "Nomsiz hisob"
+  },
+  "colors": {
+    "blue": "Ko'k",
+    "green": "Yashil",
+    "gold": "Oltin",
+    "red": "Qizil",
+    "violet": "Binafsha",
+    "grey": "Kulrang"
+  },
+  "rates": {
+    "title": "Valyuta kurslari",
+    "updated": "{{date}} da yangilangan",
+    "setByYou": "Siz kiritgansiz",
+    "usedFor": "{{names}} uchun",
+    "unused": "hech bir hisob ishlatmaydi",
+    "missing": "Kurs yo'q, balansga kirmaydi",
+    "add": "Kurs qo'shish",
+    "note": "Valyutadagi hisoblar umumiy balansga shu kurslarda qo'shiladi.",
+    "editTitle": "{{name}} kursi",
+    "editSub": "1 {{code}} necha {{base}} turishi. Siz kiritgan kurs joriy kursga qaytmaguningizcha uning o'rniga ishlatiladi.",
+    "live": "Joriy kurs: {{rate}}",
+    "noLive": "Bu valyuta uchun joriy kurs yo'q.",
+    "rateLabel": "{{amount}} narxi",
+    "useLive": "Joriy kurs",
+    "currency": "Valyuta",
+    "saved": "Kurs saqlandi",
+    "removed": "Yana joriy kurs ishlatilmoqda",
+    "invalid": "Kursni noldan katta son bilan kiriting"
   }
 }
