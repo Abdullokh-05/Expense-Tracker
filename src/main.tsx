@@ -1,22 +1,29 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import './index.css'
 import '@/lib/i18n'
 import { applyTheme } from '@/lib/theme'
 import { SETTINGS_STORAGE_KEY } from '@/lib/constants'
 
-// Register PWA service worker automatically
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      .then((reg) => {
-        console.log('SW registered successfully:', reg.scope)
+// The service worker keeps the app working offline. A new version reloads the app as soon as
+// it's installed. An app opened from the iPhone home screen is usually woken up rather than
+// loaded again, so it also looks for a new version each time it comes back to the screen.
+if (import.meta.env.PROD) {
+  registerSW({
+    immediate: true,
+    onRegisteredSW(_url, registration) {
+      if (!registration) return
+      const check = () => {
+        if (navigator.onLine) registration.update().catch(() => {})
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check()
       })
-      .catch((err) => {
-        console.error('SW registration failed:', err)
-      })
+      setInterval(check, 60 * 60 * 1000)
+    },
   })
 }
 
