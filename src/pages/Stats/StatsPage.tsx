@@ -27,7 +27,7 @@ import {
 } from '@/lib/utils'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
-import { CategorySheet } from '@/components/categories/CategorySheet'
+import { CategoryEditPopUp } from '@/components/categories/CategoryEditPopUp'
 import type { HistoryFocus } from '@/components/home/HistorySection'
 
 // Months in the column chart
@@ -405,7 +405,7 @@ export const StatsPage: React.FC = () => {
         </section>
       )}
 
-      <CategorySheet isOpen={editing !== null} onClose={() => setEditing(null)} category={editing ?? undefined} kind="expense" />
+      <CategoryEditPopUp isOpen={editing !== null} onClose={() => setEditing(null)} category={editing ?? undefined} kind="expense" />
     </div>
   )
 }

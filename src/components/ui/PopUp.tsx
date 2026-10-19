@@ -8,6 +8,8 @@ interface PopUpProps {
   isOpen: boolean
   onClose: () => void
   title?: React.ReactNode
+  // Names the dialog for screen readers when the title is drawn inside `header` instead
+  label?: string
   subtitle?: React.ReactNode
   // Shown above the title, e.g. a category's icon
   header?: React.ReactNode
@@ -24,6 +26,7 @@ export const PopUp: React.FC<PopUpProps> = ({
   isOpen,
   onClose,
   title,
+  label,
   subtitle,
   header,
   children,
@@ -72,6 +75,7 @@ export const PopUp: React.FC<PopUpProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : label}
         tabIndex={-1}
       >
         <div className="pop-top">

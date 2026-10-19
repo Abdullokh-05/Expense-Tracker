@@ -17,6 +17,7 @@ interface CategoryStore {
   addCategory: (data: Omit<Category, 'id' | 'createdAt' | 'updatedAt' | 'synced'>) => Promise<Category>
   editCategory: (id: string, patch: Partial<Category>) => Promise<void>
   archiveCategoryById: (id: string) => Promise<void>
+  reorderCategories: (orderedIds: string[]) => Promise<void>
   seedDefaults: () => Promise<void>
   getActiveCategories: () => Category[]
 }
@@ -57,6 +58,26 @@ export const useCategoryStore = create<CategoryStore>((set, get) => ({
         c.id === id ? { ...c, isArchived: true, updatedAt: new Date().toISOString() } : c
       ),
     }))
+  },
+
+  // Saves a new order for one list (outcome or income): the first id gets 0. The list
+  // reorders on screen straight away; the database catches up after.
+  reorderCategories: async (orderedIds) => {
+    const changed = orderedIds.filter((id, index) => get().categories.find((c) => c.id === id)?.sortOrder !== index)
+    const now = new Date().toISOString()
+    set((state) => ({
+      categories: sortCategories(
+        state.categories.map((c) =>
+          orderedIds.includes(c.id) ? { ...c, sortOrder: orderedIds.indexOf(c.id), updatedAt: now } : c
+        )
+      ),
+    }))
+    try {
+      await Promise.all(changed.map((id) => updateCategory(id, { sortOrder: orderedIds.indexOf(id) })))
+    } catch (error) {
+      await get().loadCategories()
+      throw error
+    }
   },
 
   seedDefaults: async () => {

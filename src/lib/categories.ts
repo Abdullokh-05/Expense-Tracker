@@ -28,19 +28,23 @@ export function getCategoryName(category: Category | null | undefined, t: TFunct
   return key ? t(`categories.${key}`) : category.name
 }
 
-// Built-in categories first, in their seed order, then custom ones oldest first
+// The order the user set (Settings › Categories), then built-in categories in their seed
+// order, then custom ones oldest first. This is also the order on the add screen.
 export function sortCategories(categories: Category[]): Category[] {
   const rank = (category: Category) => {
     const index = category.isDefault ? DEFAULT_ORDER.indexOf(category.name) : -1
     return index === -1 ? DEFAULT_ORDER.length : index
   }
+  const placed = (category: Category) => category.sortOrder ?? Number.MAX_SAFE_INTEGER
   return [...categories].sort(
-    (a, b) => rank(a) - rank(b) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
+    (a, b) =>
+      placed(a) - placed(b) || rank(a) - rank(b) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
   )
 }
 
 // First palette color no category uses yet, so new categories stay distinguishable in charts
 export function pickCategoryColor(categories: Category[]): string {
   const used = new Set(categories.filter((c) => !c.isArchived).map((c) => c.color.toLowerCase()))
-  return CATEGORY_COLORS.find((color) => !used.has(color)) ?? CATEGORY_COLORS[categories.length % CATEGORY_COLORS.length]
+  const free = CATEGORY_COLORS.find(({ color }) => !used.has(color.toLowerCase()))
+  return (free ?? CATEGORY_COLORS[categories.length % CATEGORY_COLORS.length]).color
 }

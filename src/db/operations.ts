@@ -12,7 +12,7 @@ import type {
   SyncOperation,
   SyncTable,
 } from '@/types'
-import { DEFAULT_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from '@/lib/constants'
+import { DEFAULT_CATEGORIES, DEFAULT_INCOME_CATEGORIES, LEGACY_CATEGORY_COLORS } from '@/lib/constants'
 import { generateId, nowISO, todayDate } from '@/lib/utils'
 
 // =====================
@@ -183,6 +183,13 @@ export async function ensureDefaults(
         synced: false,
       }))
     )
+  }
+
+  // Built-in categories still in the bright colours they were first made with take the
+  // calmer ones; a colour the user picked is left alone
+  for (const category of categories) {
+    const calmer = category.isDefault ? LEGACY_CATEGORY_COLORS[category.color.toLowerCase()] : undefined
+    if (calmer) await updateCategory(category.id, { color: calmer })
   }
 
   let accounts = await getAccounts(userId)

@@ -163,6 +163,35 @@ export const NotificationsPopUp: React.FC<NotificationsPopUpProps> = ({
             )
           }
 
+          if (item.kind === 'due') {
+            const due = item.recurring
+            const account = accounts.find((a) => a.id === due.accountId)
+            const name = due.note || getCategoryName(categories.find((c) => c.id === due.categoryId), t)
+            return (
+              <button key={item.id} type="button" className="prow" onClick={() => go(item.id, () => navigate('/settings?open=recurring'))}>
+                <span className="bub" style={{ '--c': categories.find((c) => c.id === due.categoryId)?.color ?? '#8E8E93' } as React.CSSProperties} aria-hidden="true">
+                  {categories.find((c) => c.id === due.categoryId)?.icon ?? '📦'}
+                </span>
+                <span className="prow-main">
+                  <span className="prow-title">
+                    <span>{t('notifications.dueTomorrow', { name })}</span>
+                  </span>
+                  <span className="prow-sub">
+                    {[
+                      formatListAmount(due.type === 'income' ? due.amount : -due.amount, due.currency, base, due.type === 'income'),
+                      account?.name,
+                      due.autoCreate ? t('upcoming.automatic') : t('upcoming.asksFirst'),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </span>
+                {unreadDot}
+                <Chevron />
+              </button>
+            )
+          }
+
           const txn = item.transaction
           const repeat = recurring.find((r) => r.id === txn.recurringTransactionId)
           return (

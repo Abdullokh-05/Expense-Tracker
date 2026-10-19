@@ -73,9 +73,11 @@ export const HomePage: React.FC = () => {
   const expectedBalance = total + upcomingNet
 
   // ── The bell ──
+  const limitAlerts = useAppStore((s) => s.settings.notifyBudgetAlertEnabled)
+  const reminders = useAppStore((s) => s.settings.notifyPaymentsEnabled !== false)
   const notifications = useMemo(
-    () => buildNotifications(transactions, budgets, recurring),
-    [transactions, budgets, recurring]
+    () => buildNotifications(transactions, budgets, recurring, { limits: limitAlerts, reminders }),
+    [transactions, budgets, recurring, limitAlerts, reminders]
   )
   const unreadCount = countUnread(notifications, readIds)
 

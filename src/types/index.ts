@@ -60,6 +60,8 @@ export interface Category {
   kind?: CategoryKind
   isArchived: boolean
   isDefault?: boolean // built-in categories
+  // Place in the list (and on the add screen) once the user has reordered it
+  sortOrder?: number
   createdAt: string
   updatedAt: string
   synced?: boolean
@@ -237,6 +239,16 @@ export interface AppSettings {
   displayName?: string
   // Exchange rates set by hand (Accounts › Exchange rates)
   customRates?: CustomRate[]
+  // How amounts are typed on the add screen; the app's keypad unless changed
+  amountInput?: 'keypad' | 'keyboard'
+  // Suggest a category from what the note says (on unless turned off)
+  suggestCategory?: boolean
+  // Start every session with amounts hidden
+  hideAmountsOnOpen?: boolean
+  // The bell's reminder the day before a recurring payment (on unless turned off)
+  notifyPaymentsEnabled?: boolean
+  // When a backup file was last downloaded
+  lastBackupAt?: string
   baseCurrency: string
   language: AppLanguage
   theme: AppTheme

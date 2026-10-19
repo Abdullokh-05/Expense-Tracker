@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { TransactionType } from '@/types'
+import { useAppStore } from '@/store/appStore'
 
 // What the add-entry sheet should start with when it opens
 interface AddRequest {
@@ -21,6 +22,7 @@ export const useUiStore = create<UiStore>((set) => ({
   addRequest: null,
   openAddSheet: (request = {}) => set({ addRequest: request }),
   closeAddSheet: () => set({ addRequest: null }),
-  amountsHidden: false,
+  // Settings › Appearance can start every session with amounts hidden
+  amountsHidden: Boolean(useAppStore.getState().settings.hideAmountsOnOpen),
   toggleAmountsHidden: () => set((state) => ({ amountsHidden: !state.amountsHidden })),
 }))

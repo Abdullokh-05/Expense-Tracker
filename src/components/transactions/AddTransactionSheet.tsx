@@ -207,7 +207,8 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const handleNoteChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setNote(val)
-    if (val.trim().length > 2 && !isTransfer) {
+    // Settings › Adding entries can turn the suggestion off
+    if (val.trim().length > 2 && !isTransfer && settings.suggestCategory !== false) {
       const suggested = await suggestCategory(settings.userId, val)
       setSuggestedCat(suggested && getCategoryKind(suggested) === type ? suggested : null)
     } else {

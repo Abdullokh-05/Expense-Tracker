@@ -1,13 +1,13 @@
 // Default preset categories for new users
 
 export const DEFAULT_CATEGORIES = [
-  { name: 'Еда', icon: '🍕', color: '#f97316', isArchived: false },
-  { name: 'Транспорт', icon: '🚗', color: '#3b82f6', isArchived: false },
-  { name: 'Жильё', icon: '🏠', color: '#8b5cf6', isArchived: false },
-  { name: 'Развлечения', icon: '🎮', color: '#ec4899', isArchived: false },
-  { name: 'Здоровье', icon: '💊', color: '#10b981', isArchived: false },
-  { name: 'Связь', icon: '📱', color: '#06b6d4', isArchived: false },
-  { name: 'Прочее', icon: '📦', color: '#6b7280', isArchived: false },
+  { name: 'Еда', icon: '🍕', color: '#D06F45', isArchived: false },
+  { name: 'Транспорт', icon: '🚗', color: '#3C7BB4', isArchived: false },
+  { name: 'Жильё', icon: '🏠', color: '#8E68B4', isArchived: false },
+  { name: 'Развлечения', icon: '🎮', color: '#B65A9F', isArchived: false },
+  { name: 'Здоровье', icon: '💊', color: '#C4566C', isArchived: false },
+  { name: 'Связь', icon: '📱', color: '#2E9690', isArchived: false },
+  { name: 'Прочее', icon: '📦', color: '#7D8A80', isArchived: false },
 ]
 
 // i18n category name keys (for default categories by key)
@@ -17,11 +17,27 @@ export const DEFAULT_CATEGORY_KEYS = [
 
 // Default income categories (sources of earnings), seeded alongside the expense ones
 export const DEFAULT_INCOME_CATEGORIES = [
-  { name: 'Зарплата', icon: '💼', color: '#22c55e', isArchived: false },
-  { name: 'Подработка', icon: '💻', color: '#0ea5e9', isArchived: false },
-  { name: 'Подарки', icon: '🎁', color: '#a855f7', isArchived: false },
-  { name: 'Другой доход', icon: '💰', color: '#84cc16', isArchived: false },
+  { name: 'Зарплата', icon: '💼', color: '#4C8A5A', isArchived: false },
+  { name: 'Подработка', icon: '💻', color: '#4A9BC8', isArchived: false },
+  { name: 'Подарки', icon: '🎁', color: '#B65A9F', isArchived: false },
+  { name: 'Другой доход', icon: '💰', color: '#C8A030', isArchived: false },
 ]
+
+// The bright colours built-in categories were first created with, and the calmer ones that
+// replaced them; ensureDefaults() moves untouched built-ins over once
+export const LEGACY_CATEGORY_COLORS: Record<string, string> = {
+  '#f97316': '#D06F45',
+  '#3b82f6': '#3C7BB4',
+  '#8b5cf6': '#8E68B4',
+  '#ec4899': '#B65A9F',
+  '#10b981': '#C4566C',
+  '#06b6d4': '#2E9690',
+  '#6b7280': '#7D8A80',
+  '#22c55e': '#4C8A5A',
+  '#0ea5e9': '#4A9BC8',
+  '#a855f7': '#B65A9F',
+  '#84cc16': '#C8A030',
+}
 
 export const DEFAULT_INCOME_CATEGORY_KEYS = ['salary', 'freelance', 'gifts', 'otherIncome'] as const
 
@@ -59,13 +75,21 @@ export const CATEGORY_EMOJIS = [
 ]
 
 // Category color options
+// Category colours: muted so emoji tiles and charts stay calm; key names the colour for screen readers
 export const CATEGORY_COLORS = [
-  '#ef4444', '#f97316', '#f59e0b', '#eab308',
-  '#84cc16', '#22c55e', '#10b981', '#14b8a6',
-  '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
-  '#8b5cf6', '#a855f7', '#ec4899', '#f43f5e',
-  '#6b7280', '#475569', '#374151',
-]
+  { color: '#C27C2C', key: 'amber' },
+  { color: '#4C8A5A', key: 'green' },
+  { color: '#3C7BB4', key: 'blue' },
+  { color: '#C4566C', key: 'rose' },
+  { color: '#8E68B4', key: 'violet' },
+  { color: '#2E9690', key: 'teal' },
+  { color: '#D06F45', key: 'orange' },
+  { color: '#6A6FC0', key: 'indigo' },
+  { color: '#C8A030', key: 'gold' },
+  { color: '#4A9BC8', key: 'sky' },
+  { color: '#B65A9F', key: 'plum' },
+  { color: '#7D8A80', key: 'grey' },
+] as const
 
 // AI limits per day
 export const AI_LIMITS = {

@@ -20,16 +20,25 @@ export type AppNotification =
   | LimitNotification
   // A recurring payment the app recorded by itself
   | { kind: 'added'; id: string; transaction: Transaction }
+  // A recurring payment due tomorrow
+  | { kind: 'due'; id: string; recurring: RecurringTransaction; date: string }
 
 // Automatic entries stay in the list this long
 const ADDED_DAYS = 30
 // Where a limit starts to warn
 const NEAR_LIMIT = 0.85
 
+// Which kinds Settings › Notifications leaves on
+export interface NotificationOptions {
+  limits: boolean
+  reminders: boolean
+}
+
 export function buildNotifications(
   transactions: Transaction[],
   budgets: Budget[],
-  recurring: RecurringTransaction[]
+  recurring: RecurringTransaction[],
+  options: NotificationOptions = { limits: true, reminders: true }
 ): AppNotification[] {
   const pending: AppNotification[] = transactions
     .filter((txn) => txn.status === 'pending')
@@ -39,7 +48,7 @@ export function buildNotifications(
   const month = getDateRange('month')
   const monthKey = month.from.slice(0, 7)
   const limits: LimitNotification[] = []
-  for (const budget of budgets) {
+  for (const budget of options.limits ? budgets : []) {
     if (budget.monthlyLimit <= 0) continue
     const spent = transactions
       .filter(
@@ -82,7 +91,14 @@ export function buildNotifications(
     .sort((a, b) => b.date.localeCompare(a.date))
     .map((txn) => ({ kind: 'added', id: `added:${txn.id}`, transaction: txn }))
 
-  return [...pending, ...limits, ...added]
+  const tomorrow = addDays(todayDate(), 1)
+  const due: AppNotification[] = options.reminders
+    ? recurring
+        .filter((item) => item.isActive && item.nextRunDate === tomorrow)
+        .map((item) => ({ kind: 'due', id: `due:${item.id}:${tomorrow}`, recurring: item, date: tomorrow }))
+    : []
+
+  return [...pending, ...due, ...limits, ...added]
 }
 
 // Unread ones light the dot on the bell. A payment waiting for an answer always counts.
