@@ -1,9 +1,9 @@
 import React, { Suspense, lazy, useEffect } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { OnboardingPage } from '@/pages/Onboarding/OnboardingPage'
 import { HomePage } from '@/pages/Home/HomePage'
-import { BreakdownPage } from '@/pages/Breakdown/BreakdownPage'
+import { StatsPage } from '@/pages/Stats/StatsPage'
 import { AccountsPage } from '@/pages/Accounts/AccountsPage'
 import { WishlistPage } from '@/pages/Wishlist/WishlistPage'
 import { SettingsPage } from '@/pages/Settings/SettingsPage'
@@ -14,6 +14,14 @@ import { useRecurringStore } from '@/store/recurringStore'
 import { reloadAllData } from '@/store/reloadAll'
 import { processRecurringTransactions } from '@/services/recurringProcessor'
 import { useRatesStore } from '@/store/ratesStore'
+
+// The income and outcome breakdowns became the Stats tab; old links land there
+function BreakdownRedirect() {
+  const { type } = useParams()
+  const { search } = useLocation()
+  const month = new URLSearchParams(search).get('m') ?? '0'
+  return <Navigate to={`/stats?type=${type === 'income' ? 'income' : 'expense'}&m=${month}`} replace />
+}
 
 // Shared components on one page, for checking the redesign while it is built. Only in
 // development builds; production never includes it.
@@ -80,8 +88,8 @@ export const App: React.FC = () => {
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route element={<AppShell />}>
         <Route path="/" element={<HomePage />} />
-        <Route path="/breakdown/:type" element={<BreakdownPage />} />
-        <Route path="/stats" element={<BreakdownPage />} />
+        <Route path="/stats" element={<StatsPage />} />
+        <Route path="/breakdown/:type" element={<BreakdownRedirect />} />
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/wishlist" element={<WishlistPage />} />
         <Route path="/settings" element={<SettingsPage />} />

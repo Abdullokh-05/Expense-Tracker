@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronRight, Repeat } from 'lucide-react'
 import type { Account } from '@/types'
@@ -17,6 +18,7 @@ import { getUpcomingNet, getUpcomingPayments } from '@/lib/upcoming'
 import { buildNotifications, countUnread } from '@/lib/notifications'
 import { BalanceBlock } from '@/components/home/BalanceBlock'
 import { HistorySection } from '@/components/home/HistorySection'
+import type { HistoryFocus } from '@/components/home/HistorySection'
 import { NotificationsPopUp } from '@/components/home/NotificationsPopUp'
 import { UpcomingPopUp } from '@/components/home/UpcomingPopUp'
 import { SearchOverlay } from '@/components/home/SearchOverlay'
@@ -40,7 +42,15 @@ export const HomePage: React.FC = () => {
   const { onEdit, onDelete, dialogs } = useTransactionActions()
 
   // 0 is this month, -1 the one before, and so on back in time
-  const [monthOffset, setMonthOffset] = useState(0)
+  // Stats opens Home on one category and month; that's used once, then forgotten so a reload
+  // shows the usual Home
+  const location = useLocation()
+  const navigate = useNavigate()
+  const focus = (location.state as { history?: HistoryFocus } | null)?.history
+  useEffect(() => {
+    if (focus) navigate(location.pathname, { replace: true, state: null })
+  }, []) // oxlint-disable-line react-hooks/exhaustive-deps
+  const [monthOffset, setMonthOffset] = useState(focus?.monthOffset ?? 0)
   const [panel, setPanel] = useState<Panel | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
   const closePanel = () => setPanel(null)
@@ -106,7 +116,7 @@ export const HomePage: React.FC = () => {
       </div>
 
       <div className="lg:col-span-7 lg:bg-surface lg:rounded-card lg:shadow-2 lg:p-6 lg:[--gutter:24px] lg:[--row-bg:var(--surface)]">
-        <HistorySection monthRange={monthRange} monthLabel={monthLabel} onEdit={onEdit} onDelete={onDelete} />
+        <HistorySection monthRange={monthRange} monthLabel={monthLabel} onEdit={onEdit} onDelete={onDelete} focus={focus} />
       </div>
 
       <NotificationsPopUp

@@ -105,8 +105,10 @@
   .mrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: -8px; }
   .mrow-label { font-size: 17px; line-height: 1.3; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .mrow-nav { display: flex; gap: 6px; }
-  .mrow-nav .iconbtn { background: var(--glass); color: var(--hero-ink); }
-  .mrow-nav .iconbtn:hover { background: rgba(255,255,255,.20); }
+  .mrow-nav .iconbtn { background: var(--glass); color: var(--ink); }
+  .mrow-nav .iconbtn:hover { background: var(--glass-strong); }
+  .hero .mrow-nav .iconbtn { color: var(--hero-ink); }
+  .hero .mrow-nav .iconbtn:hover { background: rgba(255,255,255,.20); }
   .mrow-nav .iconbtn[disabled] { opacity: .45; }
   .mrow-nav .iconbtn:active { transform: scale(.94); }
   .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -178,7 +180,7 @@
     .filter-row .chips.one .chip { padding: 0 4px; font-size: 14px; }
   }
   /* type filter + active filters stay under the shrunken block while History scrolls (phones) */
-  .hist-bar { display: flex; flex-direction: column; gap: 12px; }
+  .hist-bar { display: flex; flex-direction: column; gap: 12px; scroll-margin-top: calc(max(10px, calc(env(safe-area-inset-top) + 6px)) + 54px); }
   @media (max-width: 639px) {
     .hist-bar {
       position: sticky; top: calc(max(10px, calc(env(safe-area-inset-top) + 6px)) + 54px); z-index: 20;

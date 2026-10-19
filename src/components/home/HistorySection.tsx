@@ -16,12 +16,21 @@ import { HistoryFilters } from './HistoryFilters'
 import { EMPTY_FILTER, filterHistory, sortHistory } from './historyFilter'
 import type { HistoryFilter, HistorySort } from './historyFilter'
 
+// Stats opens Home on one category of one month (a row in "Where it went")
+export interface HistoryFocus {
+  categoryId: string
+  type: 'expense' | 'income'
+  monthOffset: number
+}
+
 interface HistorySectionProps {
   // The month picked in the balance block; the "month" period filters to it
   monthRange: DateRange
   monthLabel: string
   onEdit: (transaction: Transaction) => void
   onDelete: (id: string) => void
+  // Opened from Stats: start on that category, for the month picked
+  focus?: HistoryFocus
 }
 
 // Rows shown before "Show more"
@@ -29,7 +38,7 @@ const PAGE_SIZE = 30
 
 // History on Home: the type chips and the filter button, chips for the filters that are on,
 // then the entries by day
-export const HistorySection: React.FC<HistorySectionProps> = ({ monthRange, monthLabel, onEdit, onDelete }) => {
+export const HistorySection: React.FC<HistorySectionProps> = ({ monthRange, monthLabel, onEdit, onDelete, focus }) => {
   const { t, i18n } = useTranslation()
   const base = useAppStore((s) => s.settings.baseCurrency)
   const transactions = useTransactionStore((s) => s.transactions)
@@ -38,8 +47,10 @@ export const HistorySection: React.FC<HistorySectionProps> = ({ monthRange, mont
   const masked = useUiStore((s) => s.amountsHidden)
   const openAddSheet = useUiStore((s) => s.openAddSheet)
 
-  const [type, setType] = useState<TransactionType | ''>('')
-  const [filter, setFilter] = useState<HistoryFilter>(EMPTY_FILTER)
+  const [type, setType] = useState<TransactionType | ''>(focus?.type ?? '')
+  const [filter, setFilter] = useState<HistoryFilter>(
+    focus ? { ...EMPTY_FILTER, categoryId: focus.categoryId, period: 'month' } : EMPTY_FILTER
+  )
   const [sort, setSort] = useState<HistorySort>('newest')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
@@ -126,6 +137,11 @@ export const HistorySection: React.FC<HistorySectionProps> = ({ monthRange, mont
       if (frame) cancelAnimationFrame(frame)
     }
   }, [])
+
+  // Coming from Stats, the list is what was asked for: bring it into view
+  useEffect(() => {
+    if (focus) barRef.current?.scrollIntoView({ block: 'start' })
+  }, []) // oxlint-disable-line react-hooks/exhaustive-deps
 
   const byDay = sort === 'newest' || sort === 'oldest'
 

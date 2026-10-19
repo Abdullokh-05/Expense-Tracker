@@ -1,0 +1,60 @@
+/* Xarajat · Stats: one rule set for every chart — one hue for one series, the selected month in
+   the accent, the rest a quiet grey, a hairline grid, and values readable without hovering.
+   Ported from the redesign's xarajat.css (section 12). */
+@layer components {
+  .scard { background: var(--surface); border-radius: 20px; padding: 16px; box-shadow: var(--sh-1); display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .scard-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .hero-num { font-size: 34px; line-height: 1.15; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .hero-num.long { font-size: 28px; }
+  .hero-num.xlong { font-size: 24px; }
+  .trend { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; line-height: 1.4; color: var(--ink-2); }
+  .trend > svg { flex: none; }
+  .trend.good > svg { color: var(--in); }
+  .trend.bad > svg { color: var(--danger-text); }
+
+  /* month columns */
+  .cchart { position: relative; padding: 20px 0 0 40px; }
+  .cgrid { position: absolute; left: 40px; right: 0; height: 1px; background: var(--viz-grid); pointer-events: none; }
+  .cgrid > span { position: absolute; right: calc(100% + 8px); top: -8px; font-size: 11px; line-height: 16px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ccols { position: relative; display: flex; align-items: stretch; }
+  .ccol { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; border-radius: 12px; }
+  .ccol-plot { position: relative; height: 128px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+  .cbar { width: 22px; max-width: 70%; border-radius: 4px 4px 0 0; background: var(--viz-muted); transition: background-color var(--ease), height 240ms ease; }
+  .ccol:hover .cbar { background: color-mix(in srgb, var(--viz-mark) 45%, var(--viz-muted)); }
+  .ccol.on .cbar { background: var(--viz-mark); }
+  .cval { position: absolute; left: 50%; transform: translateX(-50%); font-size: 12px; line-height: 16px; font-weight: 600; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; padding: 0 4px; border-radius: 4px; background: var(--surface); z-index: 1; }
+  .cmon { height: 24px; display: grid; place-items: center; font-size: 12px; line-height: 1; color: var(--ink-2); white-space: nowrap; }
+  .ccol.on .cmon { color: var(--ink); font-weight: 600; }
+  .cbase { position: absolute; left: 40px; right: 0; top: 148px; height: 1px; background: var(--line-2); pointer-events: none; }
+
+  /* KPI tiles */
+  .ktile { background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--sh-1); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ktile-val { font-size: 22px; line-height: 1.25; font-weight: 600; letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+  /* category rows: one hue, the bar scaled to the biggest category */
+  .crow { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 0; width: 100%; text-align: left; color: var(--ink); border-radius: 12px; }
+  .crow + .crow { border-top: 1px solid var(--line); }
+  button.crow { transition: background-color var(--ease); }
+  button.crow:hover { background: color-mix(in srgb, var(--fill) 45%, transparent); }
+  .crow .bub { width: 36px; height: 36px; font-size: 18px; border-radius: 10px; }
+  .crow-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .crow-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+  .crow-name { font-size: 16px; line-height: 1.3; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crow-bot { display: flex; align-items: center; gap: 8px; }
+  .hbar { flex: 1; min-width: 0; height: 6px; }
+  .hbar > span { display: block; height: 6px; border-radius: 0 3px 3px 0; background: var(--viz-mark); min-width: 2px; }
+  .crow-pct { width: 36px; flex: none; text-align: right; font-size: 13px; line-height: 1; font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+  /* limit meters: a status colour, an icon and words, never colour alone */
+  .mtr { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; width: 100%; text-align: left; color: var(--ink); border-radius: 12px; }
+  .mtr + .mtr { border-top: 1px solid var(--line); padding-top: 12px; }
+  button.mtr:hover { background: color-mix(in srgb, var(--fill) 45%, transparent); }
+  .mtr-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+  .mtr-name { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; min-width: 0; }
+  .mtr-name > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mtr-top .t-sub { white-space: nowrap; flex: none; }
+  .meter { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--m) 18%, transparent); overflow: hidden; }
+  .meter > span { display: block; height: 100%; border-radius: 4px; background: var(--m); }
+  .mstat { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1.3; color: var(--ink-2); }
+  .mstat > svg { color: var(--m); flex: none; }
+}

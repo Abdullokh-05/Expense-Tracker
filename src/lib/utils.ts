@@ -91,6 +91,20 @@ export function formatMonthName(date: Date, locale: string, style: 'long' | 'sho
   return date.toLocaleDateString(locale, { month: style })
 }
 
+// Russian month names after "в": в октябре
+const RU_MONTHS_PREPOSITIONAL = [
+  'январе', 'феврале', 'марте', 'апреле', 'мае', 'июне',
+  'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре',
+]
+
+// A month's name as it reads inside a sentence: "in October", "в октябре", "Oktabrda"
+// (the sentences add the preposition or suffix themselves)
+export function formatMonthInSentence(date: Date, locale: string): string {
+  if (locale.startsWith('ru')) return RU_MONTHS_PREPOSITIONAL[date.getMonth()]
+  const name = formatMonthName(date, locale)
+  return isUzbek(locale) ? name.charAt(0).toUpperCase() + name.slice(1) : name
+}
+
 export function formatWeekdayShort(date: Date, locale: string): string {
   if (isUzbek(locale)) return UZ_WEEKDAYS_SHORT[date.getDay()]
   return date.toLocaleDateString(locale, { weekday: 'short' })

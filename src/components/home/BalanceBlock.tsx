@@ -112,8 +112,8 @@ export const BalanceBlock: React.FC<BalanceBlockProps> = ({
     return { up: now >= before, text: t('home.vsMonth', { percent: Math.round((Math.abs(now - before) / before) * 100), month: previousName }) }
   }
   const tiles = [
-    { key: 'income', amount: income, delta: delta(income, previous.income), to: `/breakdown/income?m=${monthOffset}` },
-    { key: 'outcome', amount: outcome, delta: delta(outcome, previous.outcome), to: `/breakdown/expense?m=${monthOffset}` },
+    { key: 'income', amount: income, delta: delta(income, previous.income), to: `/stats?type=income&m=${monthOffset}` },
+    { key: 'outcome', amount: outcome, delta: delta(outcome, previous.outcome), to: `/stats?type=expense&m=${monthOffset}` },
   ] as const
 
   // ── Who ──
