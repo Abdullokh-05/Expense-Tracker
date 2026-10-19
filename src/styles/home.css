@@ -1,0 +1,270 @@
+/* Xarajat · Home: the green balance block, the card row, the month tiles and History.
+   Ported from the redesign's xarajat.css (sections 8 and 14). */
+@layer components {
+
+  /* =====================
+     Balance block: green, bleeds to the screen edges on phones
+     ===================== */
+  .hero {
+    position: relative; display: flex; flex-direction: column; gap: 16px;
+    /* the cards waiting off to the side stop at the block's edge */
+    overflow: clip;
+    color: var(--hero-ink);
+    background: var(--hero); background-image: var(--hero-grad); box-shadow: var(--hero-shadow);
+    border-radius: 0 0 20px 20px;
+    /* undo the page's side and top padding so the green reaches the edges */
+    margin: calc(-1 * max(16px, env(safe-area-inset-top))) -16px 0;
+    padding: max(16px, calc(env(safe-area-inset-top) + 8px)) 16px 16px;
+  }
+  @media (min-width: 640px) {
+    .hero { margin: 0; border-radius: 20px; padding: 24px; }
+  }
+  .hero-top { display: flex; align-items: center; gap: 12px; }
+  .hero-actions { display: flex; gap: 8px; flex: none; }
+  .avatar {
+    width: 44px; height: 44px; border-radius: 999px; flex: none; display: grid; place-items: center;
+    background: #FFFFFF; color: var(--accent); font-size: 17px; font-weight: 600; line-height: 1;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.55), var(--glass-drop);
+    transition: transform var(--ease);
+  }
+  .avatar:active { transform: scale(.94); }
+  .avatar.sm { width: 36px; height: 36px; font-size: 15px; }
+  .greet { display: flex; flex-direction: column; min-width: 0; flex: 1; text-align: left; }
+  .greet-hi { font-size: 13px; line-height: 1.3; font-weight: 500; color: var(--hero-ink-2); }
+  .greet-name { font-size: 17px; line-height: 1.3; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hbtn {
+    position: relative; width: 44px; height: 44px; border-radius: 999px; flex: none; display: grid; place-items: center;
+    background: var(--glass); color: var(--hero-ink);
+    transition: background-color var(--ease), transform var(--ease);
+  }
+  .hbtn:hover { background: rgba(255,255,255,.20); }
+  .hbtn:active { transform: scale(.94); }
+  .hbtn .dot { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--hero); }
+
+  /* =====================
+     Balance cards: the total first, then one per account; swipe sideways
+     ===================== */
+  .bcards { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+  .bcards-track {
+    display: flex; gap: 8px;
+    transform: translateX(calc(var(--i, 0) * (-100% - 8px) + var(--drag, 0px)));
+    transition: transform 320ms cubic-bezier(.2,.8,.2,1);
+  }
+  .bcards.dragging .bcards-track { transition: none; }
+  .bcards-track > .bcard { flex: 0 0 100%; }
+  .bcard {
+    --c: #3E8A64; --glass-hi: rgba(255,255,255,.42); --glass-lo: rgba(255,255,255,.05);
+    position: relative; min-width: 0; min-height: 156px; border-radius: 16px; padding: 16px 16px 16px 20px;
+    display: flex; flex-direction: column; gap: 8px; color: #FFFFFF; text-align: left; overflow: hidden;
+    background: radial-gradient(130% 110% at 0% 0%, color-mix(in srgb, var(--c) 34%, transparent) 0%, transparent 62%), #0E1311;
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 16px 30px -18px rgba(0,0,0,.85);
+    transition: transform var(--ease), filter var(--ease);
+  }
+  .dark .bcard {
+    background: radial-gradient(130% 110% at 0% 0%, color-mix(in srgb, var(--c) 30%, transparent) 0%, transparent 62%), #0B0D0C;
+    border-color: rgba(255,255,255,.10);
+  }
+  button.bcard:hover, .bcard:has(.bcard-link:hover) { filter: brightness(1.12); }
+  button.bcard:active, .bcard:has(.bcard-link:active) { transform: scale(.99); }
+  /* the total card opens Accounts: a stretched link under the eye button */
+  .bcard-link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+  .bcard .iconbtn { position: relative; z-index: 2; margin: -6px -10px -6px -6px; color: #FFFFFF; }
+  .bcard .iconbtn:hover { background: rgba(255,255,255,.10); }
+  .bcard-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+  .bcard-label { font-size: 15px; line-height: 1.4; font-weight: 500; color: rgba(255,255,255,.72); white-space: nowrap; }
+  .bcard-name { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 16px; line-height: 1.3; font-weight: 600; }
+  .bcard-name > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bcard-ico { width: 32px; height: 32px; border-radius: 10px; background: var(--c); color: #FFFFFF; display: grid; place-items: center; flex: none; }
+  .bcard-more { width: 32px; height: 32px; border-radius: 999px; background: rgba(255,255,255,.10); display: grid; place-items: center; flex: none; color: #FFFFFF; }
+  .bcard .cur, .bcard .amt-sub { color: rgba(255,255,255,.64); }
+  .bcard-amt { display: flex; flex-direction: column; margin-top: auto; min-width: 0; }
+  .bcard-amt .money-xl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .bcard-amt .money-xl.long { font-size: 28px; }
+  .bcard-amt .money-xl.xlong { font-size: 22px; }
+  .bcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; font-size: 13px; line-height: 1.3; font-weight: 500; color: rgba(255,255,255,.64); }
+  .bcard-foot .warn { color: var(--hero-alert); }
+  .btag { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 8px; border-radius: 6px; background: rgba(255,255,255,.12); color: #FFFFFF; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .bcard.off .bcard-amt, .bcard.off .bcard-name { opacity: .56; }
+  .bcard::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(155deg, var(--glass-hi) 0%, var(--glass-lo) 30%, transparent 52%, var(--glass-lo) 78%, var(--glass-hi) 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+  }
+
+  /* paging dots: a glass capsule under the cards */
+  .bdots { position: relative; display: flex; justify-content: center; width: max-content; margin: -8px auto; padding: 0 6px; border-radius: 999px; background: var(--glass); }
+  .bdot { width: 20px; height: 24px; display: grid; place-items: center; }
+  .bdot::before { content: ""; width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.40); transition: width var(--ease), background-color var(--ease); }
+  .bdot.on::before { width: 16px; background: #FFFFFF; }
+
+  /* =====================
+     Month row and the income / outcome tiles
+     ===================== */
+  .mrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: -8px; }
+  .mrow-label { font-size: 17px; line-height: 1.3; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .mrow-nav { display: flex; gap: 6px; }
+  .mrow-nav .iconbtn { background: var(--glass); color: var(--hero-ink); }
+  .mrow-nav .iconbtn:hover { background: rgba(255,255,255,.20); }
+  .mrow-nav .iconbtn[disabled] { opacity: .45; }
+  .mrow-nav .iconbtn:active { transform: scale(.94); }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .htile {
+    position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 0; min-height: 44px;
+    padding: 12px; border-radius: 16px; background: var(--glass); color: var(--hero-ink); text-align: left;
+    transition: background-color var(--ease), transform var(--ease);
+  }
+  .htile:hover { background: rgba(255,255,255,.20); }
+  .htile:active { transform: scale(.98); }
+  .htile-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .htile-txt { display: flex; flex-direction: column; min-width: 0; }
+  .htile-label { font-size: 13px; line-height: 1.3; font-weight: 500; color: var(--hero-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile-amt { font-size: 17px; line-height: 1.3; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile-amt.long { font-size: 15px; }
+  .tile-amt.xlong { font-size: 13px; }
+  .tile-amt.zero { color: var(--hero-ink-2); }
+  .hdot { width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; flex: none; }
+  .hdot.in { background: var(--hero-in); color: #0F3322; }
+  .hdot.out { background: var(--hero-out); color: #4A230F; }
+  .delta { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; line-height: 1.3; font-weight: 500; color: var(--hero-ink-2); white-space: nowrap; overflow: hidden; }
+  .delta.in svg { color: var(--hero-in); }
+  .delta.out svg { color: var(--hero-out); }
+
+  /* glass material and rim for the controls on the green */
+  .hbtn, .htile, .bdots, .mrow-nav .iconbtn {
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-in), var(--glass-drop);
+  }
+  .hbtn::after, .htile::after, .bdots::after, .mrow-nav .iconbtn::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(155deg, var(--glass-hi) 0%, var(--glass-lo) 30%, transparent 52%, var(--glass-lo) 78%, var(--glass-hi) 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+  }
+
+  /* the block shrinks to one line once it scrolls away (phones) */
+  .hero-mini {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+    display: flex; align-items: center; gap: 12px;
+    padding: max(10px, calc(env(safe-area-inset-top) + 6px)) 16px 10px;
+    color: var(--hero-ink); background: var(--hero); background-image: var(--hero-grad); box-shadow: var(--hero-shadow);
+    border-radius: 0 0 20px 20px;
+    transform: translateY(-110%); visibility: hidden;
+    transition: transform 240ms cubic-bezier(.2,.8,.2,1), visibility 0s linear 240ms;
+  }
+  .hero-mini.on { transform: none; visibility: visible; transition: transform 240ms cubic-bezier(.2,.8,.2,1); }
+  .hero-mini .greet-name { font-size: 17px; font-variant-numeric: tabular-nums; }
+  .hero-mini .cur { color: var(--hero-ink-2); font-size: 13px; }
+  @media (min-width: 640px) { .hero-mini { display: none; } }
+
+  /* =====================
+     Forecast card
+     ===================== */
+  .fc { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; min-height: 64px; text-align: left; width: 100%; color: var(--ink); transition: background-color var(--ease), transform var(--ease); }
+  .fc:hover { background: color-mix(in srgb, var(--fill) 45%, var(--surface)); }
+  .fc:active { transform: scale(.99); }
+  .fc-ico { width: 36px; height: 36px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-text); display: grid; place-items: center; flex: none; }
+
+  /* =====================
+     History
+     ===================== */
+  .filter-row { display: flex; align-items: center; gap: 8px; }
+  .filter-row .chips.one { flex: 1 1 auto; min-width: 0; gap: 4px; }
+  .filter-row .sqbtn { width: 37px; height: 37px; }
+  /* the round filter button looks 37 px but takes a 44 px tap */
+  .filter-row .sqbtn::before { content: ""; position: absolute; inset: -4px; }
+  @media (max-width: 374px) {
+    .filter-row .chips.one .chip { padding: 0 4px; font-size: 14px; }
+  }
+  /* type filter + active filters stay under the shrunken block while History scrolls (phones) */
+  .hist-bar { display: flex; flex-direction: column; gap: 12px; }
+  @media (max-width: 639px) {
+    .hist-bar {
+      position: sticky; top: calc(max(10px, calc(env(safe-area-inset-top) + 6px)) + 54px); z-index: 20;
+      margin: 0 -16px; padding: 12px 16px; background: var(--bg);
+      /* fills the gaps beside the rounded corners of the shrunken block above */
+      box-shadow: 0 -20px 0 var(--bg);
+    }
+    .hist-bar.stuck { border-bottom: 1px solid var(--line); }
+  }
+  .tokens { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+  .token {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 0 16px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent-text); font-size: 15px; line-height: 1.2; font-weight: 600; white-space: nowrap;
+    max-width: 100%; transition: background-color var(--ease), transform var(--ease);
+  }
+  .token > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .token:active { transform: scale(.98); }
+
+  .day { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 24px 0 8px; font-size: 13px; line-height: 1.3; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; }
+  .day .num { font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .hist-list > section:first-child > .day { padding-top: 12px; }
+
+  /* one entry; on phones it slides left to show Edit and Delete */
+  .swipe { position: relative; overflow: hidden; margin: 0 calc(-1 * var(--gutter, 16px)); padding: 0 var(--gutter, 16px); }
+  .swipe-actions { position: absolute; top: 8px; bottom: 8px; right: var(--gutter, 16px); display: flex; gap: 8px; visibility: hidden; transition: visibility 0s linear 240ms; }
+  /* shown only while the row is open or being dragged, so no edge of them peeks out */
+  .swipe.open .swipe-actions, .swipe:has(> .tx.dragging) .swipe-actions { visibility: visible; transition-delay: 0s; }
+  .sw { width: 72px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 13px; font-weight: 600; transition: transform var(--ease), filter var(--ease); }
+  .sw:active { transform: scale(.96); }
+  .sw.edit { background: var(--fill); color: var(--ink); }
+  .sw.del { background: var(--danger-fill); color: #FFFFFF; }
+  .tx {
+    position: relative; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 0; width: 100%;
+    text-align: left; color: var(--ink); background: var(--row-bg, var(--bg)); touch-action: pan-y;
+    transition: transform 240ms cubic-bezier(.2,.8,.2,1);
+  }
+  .tx.dragging { transition: none; }
+  /* the row's container clips, so its focus ring goes inside */
+  .tx:focus-visible { outline-offset: -2px; border-radius: 12px; }
+  .bub { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; line-height: 1; flex: none; background: color-mix(in srgb, var(--c, #8E8E93) var(--tint), transparent); }
+  .bub.tr { background: var(--fill); color: var(--ink-2); }
+  .prow .bub { width: 36px; height: 36px; font-size: 18px; border-radius: 10px; }
+  .tx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .tx-title { display: flex; align-items: center; gap: 4px; font-size: 16px; line-height: 1.4; font-weight: 500; min-width: 0; }
+  .tx-title > span { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+  .tx-title svg { color: var(--ink-2); flex: none; }
+  .tx-sub { font-size: 14px; line-height: 1.4; color: var(--ink-2); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+  .tx-end { display: flex; flex-direction: column; align-items: flex-end; flex: none; max-width: 50%; }
+  .tx-end .amt { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .more { min-height: 44px; border-radius: 999px; background: var(--fill); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; font-weight: 500; width: 100%; padding: 0 16px; color: var(--ink); transition: background-color var(--ease), transform var(--ease); }
+  .more:hover { background: var(--fill-2); }
+  .more:active { transform: scale(.98); }
+
+  /* =====================
+     Search: a glass field at the top over the blurred screen
+     ===================== */
+  .search-layer { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; }
+  .search-top { position: relative; display: flex; align-items: center; gap: 8px; padding: max(12px, calc(env(safe-area-inset-top) + 8px)) 12px 12px; }
+  .search-field {
+    position: relative; flex: 1; min-width: 0; min-height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 16px;
+    border-radius: 999px; background: var(--glass-strong); color: var(--ink);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-in), var(--glass-drop);
+    animation: pop-in 220ms cubic-bezier(.2,.8,.2,1);
+  }
+  .search-field > svg { color: var(--ink-2); flex: none; }
+  .search-field input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 17px; color: var(--ink); padding: 0; text-overflow: ellipsis; }
+  .search-field input::placeholder { color: var(--ink-2); }
+  .search-field input::-webkit-search-cancel-button { display: none; }
+  .search-field .iconbtn { width: 40px; height: 40px; color: var(--ink-2); }
+  .search-cancel { min-height: 44px; padding: 0 8px; font-size: 16px; font-weight: 500; color: var(--accent-text); flex: none; }
+  .search-results {
+    --row-bg: var(--surface);
+    position: relative; margin: 0 12px calc(12px + env(safe-area-inset-bottom)); padding: 4px 16px 8px; border-radius: 20px;
+    background: var(--surface); box-shadow: var(--sh-2); overflow-y: auto; overscroll-behavior: contain; min-height: 0;
+    animation: pop-in 260ms cubic-bezier(.2,.8,.2,1);
+  }
+  /* on a solid card: grey text straight on the blurred screen is too faint */
+  .search-hint { position: relative; margin: 0 12px; padding: 16px 20px; border-radius: 20px; background: var(--surface); box-shadow: var(--sh-2); text-align: center; text-wrap: pretty; animation: pop-in 260ms cubic-bezier(.2,.8,.2,1); }
+  @media (min-width: 640px) {
+    .search-top, .search-results, .search-hint { width: min(560px, calc(100% - 24px)); margin-left: auto; margin-right: auto; }
+    .search-top { padding-top: 10vh; padding-left: 0; padding-right: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bcards-track, .hero-mini, .tx { transition: none; }
+    .search-field, .search-results, .search-hint { animation: none; }
+  }
+}

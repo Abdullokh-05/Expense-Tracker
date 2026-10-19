@@ -78,8 +78,11 @@ const UZ_MONTHS = [
 // Not just the first three letters: iyun and iyul would both become "iyu"
 const UZ_MONTHS_SHORT = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek']
 const UZ_WEEKDAYS_SHORT = ['Yak', 'Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan']
+const UZ_WEEKDAYS = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba']
 
 const isUzbek = (locale: string) => locale.toLowerCase().startsWith('uz')
+// English dates in the British order the design uses: "Monday, 12 October", "18 Oct"
+const dateLocale = (locale: string) => (locale === 'en' ? 'en-GB' : locale)
 
 export function formatMonthName(date: Date, locale: string, style: 'long' | 'short' = 'long'): string {
   if (isUzbek(locale)) {
@@ -93,16 +96,16 @@ export function formatWeekdayShort(date: Date, locale: string): string {
   return date.toLocaleDateString(locale, { weekday: 'short' })
 }
 
-// "6 окт." / "Oct 6" / "6-okt"
+// "6 окт." / "6 Oct" / "6-okt"
 function formatDayMonth(date: Date, locale: string): string {
   if (isUzbek(locale)) return `${date.getDate()}-${formatMonthName(date, locale, 'short')}`
-  return date.toLocaleDateString(locale, { day: 'numeric', month: 'short' })
+  return date.toLocaleDateString(dateLocale(locale), { day: 'numeric', month: 'short' })
 }
 
-// "10 октября 2026 г." / "October 10, 2026" / "10-oktabr, 2026"
+// "10 октября 2026 г." / "10 October 2026" / "10-oktabr, 2026"
 function formatFullDate(date: Date, locale: string): string {
   if (isUzbek(locale)) return `${date.getDate()}-${formatMonthName(date, locale)}, ${date.getFullYear()}`
-  return date.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })
+  return date.toLocaleDateString(dateLocale(locale), { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 // =====================
@@ -120,40 +123,112 @@ export function roundMoney(amount: number, currency: string): number {
   return Math.round(amount * factor) / factor
 }
 
-// Format currency amount based on currency code
-export function formatAmount(amount: number, currency: string): string {
-  const decimals = currencyDecimals(currency)
-  const rounded = roundMoney(Math.abs(amount), currency)
+// What hidden amounts show instead of the number
+export const MASK = '••• •••'
 
-  const formatted = new Intl.NumberFormat('ru-RU', {
-    style: 'decimal',
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(rounded)
+const NBSP = ' '
 
-  const symbols: Record<string, string> = {
-    UZS: "so'm",
-    USD: '$',
-    EUR: '€',
-    RUB: '₽',
-    GBP: '£',
-    KZT: '₸',
-    TRY: '₺',
-    CNY: '¥',
-    AED: 'AED',
-  }
-
-  const symbol = symbols[currency.toUpperCase()] ?? currency
-  const postfix = ['UZS'].includes(currency.toUpperCase())
-  // The sign goes before the symbol: −$5.00, not $−5.00
-  const sign = amount < 0 && rounded > 0 ? '−' : ''
-
-  return postfix ? `${sign}${formatted} ${symbol}` : `${sign}${symbol}${formatted}`
+// Symbols written before the number; any other currency is written after it (14 821 433 soʻm)
+const PREFIX_SYMBOLS: Record<string, string> = {
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  CNY: '¥',
+  TRY: '₺',
 }
 
-// Short form for chart axes: 120000 → "120 тыс." / "120K"
+const SUFFIX_SYMBOLS: Record<string, string> = {
+  RUB: '₽',
+  KZT: '₸',
+}
+
+export function currencySymbol(currency: string, locale = i18n.language): { symbol: string; before: boolean } {
+  const code = currency.toUpperCase()
+  if (code in PREFIX_SYMBOLS) return { symbol: PREFIX_SYMBOLS[code], before: true }
+  if (code === 'UZS') return { symbol: locale.startsWith('ru') ? 'сум' : 'soʻm', before: false }
+  return { symbol: SUFFIX_SYMBOLS[code] ?? code, before: false }
+}
+
+// The number alone: thousands split by non-breaking spaces, the decimal mark of the language
+// (452.30 in English, 452,30 in Russian and Uzbek). Always positive.
+export function formatNumber(amount: number, currency: string, locale = i18n.language): string {
+  const decimals = currencyDecimals(currency)
+  const [whole, fraction] = roundMoney(Math.abs(amount), currency).toFixed(decimals).split('.')
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)
+  if (!fraction) return grouped
+  return grouped + (locale.startsWith('en') ? '.' : ',') + fraction
+}
+
+export interface MoneyParts {
+  // A true minus (−) or a plus, or nothing
+  sign: string
+  number: string
+  symbol: string
+  symbolBefore: boolean
+}
+
+// Pieces of an amount, for layouts that size the number and the currency differently
+export function moneyParts(
+  amount: number,
+  currency: string,
+  { signed = false, locale = i18n.language }: { signed?: boolean; locale?: string } = {}
+): MoneyParts {
+  const number = formatNumber(amount, currency, locale)
+  const isZero = roundMoney(Math.abs(amount), currency) === 0
+  const sign = isZero ? '' : amount < 0 ? '−' : signed ? '+' : ''
+  const { symbol, before } = currencySymbol(currency, locale)
+  return { sign, number, symbol, symbolBefore: before }
+}
+
+interface FormatOptions {
+  // Show "+" on positive amounts too
+  signed?: boolean
+  // Leave the currency out (lists in the main currency read better without it)
+  symbol?: boolean
+  locale?: string
+}
+
+// −14 821 433 soʻm, −$452.30, +1 900 000
+export function formatAmount(amount: number, currency: string, options: FormatOptions = {}): string {
+  const { signed = false, symbol: withSymbol = true, locale = i18n.language } = options
+  const parts = moneyParts(amount, currency, { signed, locale })
+  if (!withSymbol) return parts.sign + parts.number
+  // The sign goes before the symbol: −$5.00, not $−5.00
+  return parts.symbolBefore
+    ? `${parts.sign}${parts.symbol}${parts.number}`
+    : `${parts.sign}${parts.number}${NBSP}${parts.symbol}`
+}
+
+// In lists the main currency goes without its symbol; other currencies keep theirs
+export function formatListAmount(
+  amount: number,
+  currency: string,
+  baseCurrency: string,
+  signed = false
+): string {
+  return formatAmount(amount, currency, { signed, symbol: currency !== baseCurrency || currency in PREFIX_SYMBOLS })
+}
+
+const COMPACT_UNITS: Record<'en' | 'ru' | 'uz', [string, string, string]> = {
+  en: ['K', 'M', 'B'],
+  ru: [' тыс.', ' млн', ' млрд'],
+  uz: [' ming', ' mln', ' mlrd'],
+}
+
+// Short form for chart labels: 5 200 000 → "5.2M" / "5,2 млн" / "5,2 mln"
 export function formatCompact(amount: number, locale = i18n.language): string {
-  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(amount)
+  const lang = locale.startsWith('ru') ? 'ru' : isUzbek(locale) ? 'uz' : 'en'
+  const sign = amount < 0 ? '−' : ''
+  const abs = Math.abs(amount)
+  const steps: [number, number][] = [[1e9, 2], [1e6, 1], [1e3, 0]]
+  for (const [size, unit] of steps) {
+    if (abs >= size) {
+      const value = Math.round((abs / size) * 10) / 10
+      const text = String(value).replace('.', lang === 'en' ? '.' : ',')
+      return `${sign}${text}${COMPACT_UNITS[lang][unit]}`
+    }
+  }
+  return sign + String(Math.round(abs))
 }
 
 // =====================
@@ -239,6 +314,34 @@ export function formatDate(dateStr: string, locale = i18n.language): string {
   if (dateStr === addDays(today, -1)) return i18n.t('common.yesterday')
 
   return formatFullDate(parseDateString(dateStr), locale)
+}
+
+// History day headings: "Today", "Yesterday", "Monday, 12 October" (the year only when it isn't this one)
+export function formatDayLabel(dateStr: string, locale = i18n.language): string {
+  const today = todayDate()
+  if (dateStr === today) return i18n.t('common.today')
+  if (dateStr === addDays(today, -1)) return i18n.t('common.yesterday')
+
+  const date = parseDateString(dateStr)
+  const sameYear = date.getFullYear() === new Date().getFullYear()
+  if (isUzbek(locale)) {
+    const weekday = UZ_WEEKDAYS[date.getDay()]
+    const day = `${date.getDate()}-${formatMonthName(date, locale)}`
+    return `${weekday[0].toUpperCase()}${weekday.slice(1)}, ${day}${sameYear ? '' : `, ${date.getFullYear()}`}`
+  }
+  // Built from two parts so every language gets the comma: "Monday, 12 October"
+  const weekday = date.toLocaleDateString(dateLocale(locale), { weekday: 'long' })
+  const day = date.toLocaleDateString(dateLocale(locale), {
+    day: 'numeric',
+    month: 'long',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${day}`
+}
+
+// "18 Oct" / "18 окт." / "18-okt"
+export function formatShortDate(dateStr: string, locale = i18n.language): string {
+  return formatDayMonth(parseDateString(dateStr), locale)
 }
 
 // Calculate percentage change

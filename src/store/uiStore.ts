@@ -12,10 +12,15 @@ interface UiStore {
   addRequest: AddRequest | null
   openAddSheet: (request?: AddRequest) => void
   closeAddSheet: () => void
+  // The eye on the Total balance card: every amount shows as ••• ••• while this is on
+  amountsHidden: boolean
+  toggleAmountsHidden: () => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
   addRequest: null,
   openAddSheet: (request = {}) => set({ addRequest: request }),
   closeAddSheet: () => set({ addRequest: null }),
+  amountsHidden: false,
+  toggleAmountsHidden: () => set((state) => ({ amountsHidden: !state.amountsHidden })),
 }))

@@ -1,8 +1,8 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef } from 'react'
 import type { Transaction, Category, Account } from '@/types'
-import { formatAmount } from '@/lib/utils'
+import { formatAmount, formatListAmount, MASK } from '@/lib/utils'
 import { getCategoryName } from '@/lib/categories'
-import { Trash2, Edit2, CornerDownRight, Repeat, ArrowLeftRight } from 'lucide-react'
+import { ArrowLeftRight, Pencil, Repeat, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface TransactionItemProps {
@@ -12,9 +12,18 @@ interface TransactionItemProps {
   accounts: Account[]
   baseCurrency: string
   onEdit: (transaction: Transaction) => void
-  onDelete: (id: string) => void
+  // Without it the row doesn't slide open
+  onDelete?: (id: string) => void
+  // Whether Edit and Delete are showing; the list keeps one row open at a time
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  masked?: boolean
 }
 
+// How far the row slides to show Edit and Delete (two 72 px buttons, the gaps and the edge)
+const REVEAL = 164
+
+// One History entry. Tap to edit; on touch screens slide it left for Edit and Delete.
 export const TransactionItem: React.FC<TransactionItemProps> = ({
   transaction,
   category,
@@ -22,58 +31,75 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   baseCurrency,
   onEdit,
   onDelete,
+  open = false,
+  onOpenChange,
+  masked = false,
 }) => {
   const { t } = useTranslation()
-  const [startX, setStartX] = useState(0)
-  const [isSwiping, setIsSwiping] = useState(false)
-  const [swipeOffset, setSwipeOffset] = useState(0)
-  const rowRef = useRef<HTMLDivElement>(null)
-  // Set while a touch drags the row, so the click that may follow isn't taken for a tap
-  const didSwipe = useRef(false)
+  const rowRef = useRef<HTMLButtonElement>(null)
+  const drag = useRef<{ x: number; y: number; start: number; offset: number; on: boolean } | null>(null)
+  // Set while the row is dragged, so the click that ends the drag isn't taken for a tap
+  const moved = useRef(false)
+  const swipeable = Boolean(onDelete && onOpenChange)
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setStartX(e.touches[0].clientX)
-    setIsSwiping(true)
-    didSwipe.current = false
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!swipeable || (e.pointerType === 'mouse' && e.button !== 0)) return
+    const start = open ? -REVEAL : 0
+    drag.current = { x: e.clientX, y: e.clientY, start, offset: start, on: false }
+    moved.current = false
   }
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isSwiping) return
-    const diff = e.touches[0].clientX - startX
-    if (diff < 0) {
-      const offset = Math.max(diff, -112)
-      setSwipeOffset(offset)
-      if (diff < -8) didSwipe.current = true
+  const handlePointerMove = (e: React.PointerEvent) => {
+    const d = drag.current
+    const row = rowRef.current
+    if (!d || !row) return
+    const dx = e.clientX - d.x
+    const dy = e.clientY - d.y
+    if (!d.on) {
+      // Scrolling the list wins over sliding the row
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+        drag.current = null
+        return
+      }
+      if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(dy)) return
+      d.on = true
+      moved.current = true
+      row.setPointerCapture(e.pointerId)
+      row.classList.add('dragging')
     }
+    let next = d.start + dx
+    // Resist past either end
+    if (next > 0) next = next / 3
+    if (next < -REVEAL) next = -REVEAL + (next + REVEAL) / 3
+    d.offset = next
+    row.style.transform = `translateX(${next}px)`
   }
 
-  const handleTouchEnd = () => {
-    setIsSwiping(false)
-    if (swipeOffset < -60) {
-      setSwipeOffset(-112)
-    } else {
-      setSwipeOffset(0)
-    }
+  const handlePointerEnd = () => {
+    const d = drag.current
+    const row = rowRef.current
+    drag.current = null
+    if (!d?.on || !row) return
+    row.classList.remove('dragging')
+    const shouldOpen = d.offset < -REVEAL / 2
+    row.style.transform = shouldOpen ? `translateX(${-REVEAL}px)` : ''
+    onOpenChange?.(shouldOpen)
   }
 
-  const handleResetSwipe = () => setSwipeOffset(0)
-
-  // Tapping (or clicking, on desktop where there is no swipe) opens the transaction for editing
-  const handleRowClick = () => {
-    if (didSwipe.current) {
-      didSwipe.current = false
+  const handleClick = () => {
+    if (moved.current) {
+      moved.current = false
       return
     }
-    if (swipeOffset !== 0) {
-      handleResetSwipe()
+    if (open) {
+      onOpenChange?.(false)
       return
     }
     onEdit(transaction)
   }
 
-  const hasMultiCurrency = transaction.currency !== baseCurrency
   const isTransfer = transaction.type === 'transfer'
-  const isExpense = transaction.type === 'expense'
+  const isIncome = transaction.type === 'income'
   const categoryName = getCategoryName(category, t)
   const accountName = accounts.find((a) => a.id === transaction.accountId)?.name
   const toAccountName = accounts.find((a) => a.id === transaction.toAccountId)?.name
@@ -86,111 +112,79 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
     ? [accountName, toAccountName].filter(Boolean).join(' → ')
     : [accountName, transaction.note ? categoryName : null].filter(Boolean).join(' · ')
 
+  const amount = masked
+    ? MASK
+    : isTransfer
+      ? formatListAmount(transaction.amount, transaction.currency, baseCurrency)
+      : formatListAmount(isIncome ? transaction.amount : -transaction.amount, transaction.currency, baseCurrency, isIncome)
+  const converted =
+    !masked && transaction.currency !== baseCurrency
+      ? `≈ ${formatAmount(transaction.amountInBaseCurrency, baseCurrency)}`
+      : null
+
   return (
-    <div className="relative overflow-hidden rounded-2xl select-none" style={{ background: 'var(--color-surface-2)' }}>
-      {/* Background Actions (revealed by swipe) */}
-      <div className="absolute inset-y-0 right-0 flex items-stretch w-28">
-        <button
-          onClick={() => { onEdit(transaction); handleResetSwipe() }}
-          className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors"
-          style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-secondary)' }}
-          aria-label={t('transaction.edit')}
-          tabIndex={swipeOffset === 0 ? -1 : 0}
-        >
-          <Edit2 size={15} />
-          <span className="text-[9px] font-semibold">{t('transaction.edit')}</span>
-        </button>
-        <button
-          onClick={() => { onDelete(transaction.id); handleResetSwipe() }}
-          className="flex-1 flex flex-col items-center justify-center gap-1 rounded-r-2xl transition-colors"
-          style={{ background: '#fef2f2', color: '#dc2626' }}
-          aria-label={t('transaction.delete')}
-          tabIndex={swipeOffset === 0 ? -1 : 0}
-        >
-          <Trash2 size={15} />
-          <span className="text-[9px] font-semibold">{t('transaction.delete')}</span>
-        </button>
-      </div>
+    <div className={`swipe${open ? ' open' : ''}`}>
+      {swipeable && (
+        <div className="swipe-actions" aria-hidden={!open}>
+          <button
+            type="button"
+            className="sw edit"
+            tabIndex={open ? 0 : -1}
+            onClick={() => {
+              onOpenChange?.(false)
+              onEdit(transaction)
+            }}
+          >
+            <Pencil size={18} strokeWidth={1.75} aria-hidden="true" />
+            {t('common.edit')}
+          </button>
+          <button
+            type="button"
+            className="sw del"
+            tabIndex={open ? 0 : -1}
+            onClick={() => {
+              onOpenChange?.(false)
+              onDelete?.(transaction.id)
+            }}
+          >
+            <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
+            {t('common.delete')}
+          </button>
+        </div>
+      )}
 
-      {/* Swipeable Row */}
-      <div
+      <button
         ref={rowRef}
-        role="button"
-        tabIndex={0}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onClick={handleRowClick}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onEdit(transaction)
-          }
-        }}
-        style={{
-          transform: `translateX(${swipeOffset}px)`,
-          transition: isSwiping ? 'none' : 'transform 200ms cubic-bezier(0.4, 0, 0.2, 1)',
-          background: 'var(--color-surface)',
-          borderRadius: '16px',
-          border: '1px solid var(--color-border)',
-        }}
-        className="relative p-3.5 flex items-center justify-between"
+        type="button"
+        className="tx"
+        style={open ? { transform: `translateX(${-REVEAL}px)` } : undefined}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onClick={handleClick}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Category icon bubble */}
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
-            style={{
-              backgroundColor: isTransfer ? 'var(--color-surface-2)' : `${category?.color ?? '#6b7280'}1a`,
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            {isTransfer ? <ArrowLeftRight size={18} /> : category?.icon ?? '📦'}
-          </div>
-
-          {/* Text info */}
-          <div className="min-w-0">
-            <div
-              className="text-sm font-semibold truncate"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              {title}
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] mt-0.5 min-w-0" style={{ color: 'var(--color-text-muted)' }}>
-              {transaction.recurringTransactionId && (
-                <span className="flex items-center gap-0.5 shrink-0">
-                  <Repeat size={10} />
-                </span>
-              )}
-              <span className="truncate">{details}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Amount */}
-        <div className="text-right shrink-0 ml-3">
-          <div
-            className="text-sm font-bold amount-display"
-            style={{
-              color: isTransfer
-                ? 'var(--color-text-secondary)'
-                : isExpense ? 'var(--color-text-primary)' : 'var(--color-income)',
-            }}
-          >
-            {isTransfer ? '' : isExpense ? '−' : '+'}
-            {formatAmount(transaction.amount, transaction.currency)}
-          </div>
-          {hasMultiCurrency && (
-            <div
-              className="text-[10px] mt-0.5 flex items-center justify-end gap-0.5"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              <CornerDownRight size={9} />
-              {formatAmount(transaction.amountInBaseCurrency, baseCurrency)}
-            </div>
-          )}
-        </div>
-      </div>
+        <span
+          className={`bub${isTransfer ? ' tr' : ''}`}
+          style={isTransfer ? undefined : ({ '--c': category?.color ?? '#8E8E93' } as React.CSSProperties)}
+          aria-hidden="true"
+        >
+          {isTransfer ? <ArrowLeftRight size={20} strokeWidth={1.75} /> : category?.icon ?? '📦'}
+        </span>
+        <span className="tx-main">
+          <span className="tx-title">
+            <span>{title}</span>
+            {transaction.recurringTransactionId && (
+              <Repeat size={16} strokeWidth={1.75} role="img" aria-label={t('transaction.recurring')} />
+            )}
+          </span>
+          {details && <span className="tx-sub">{details}</span>}
+        </span>
+        <span className="tx-end">
+          <span className={`amt${isIncome ? ' in' : ''}${isTransfer ? ' tr' : ''}${masked ? ' masked' : ''}`}>{amount}</span>
+          {converted && <span className="amt-sub">{converted}</span>}
+        </span>
+      </button>
     </div>
   )
 }

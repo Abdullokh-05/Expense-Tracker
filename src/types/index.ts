@@ -217,6 +217,8 @@ export interface SyncQueueItem {
 // =====================
 export interface AppSettings {
   userId: string
+  // What the home screen greets the user by; empty until they set it
+  displayName?: string
   baseCurrency: string
   language: AppLanguage
   theme: AppTheme

@@ -72,3 +72,21 @@ export function sumBalances(
 export function activeAccounts(accounts: Account[]): Account[] {
   return accounts.filter((account) => !account.isArchived)
 }
+
+// How an account card looks: savings for the wishlist fund, otherwise its type
+export type AccountLook = 'card' | 'cash' | 'savings'
+
+export function accountLook(account: Account): AccountLook {
+  return account.isWishlistFund ? 'savings' : account.type
+}
+
+const LOOK_COLORS: Record<AccountLook, string> = {
+  card: '#3F7CC4',
+  cash: '#3E9A62',
+  savings: '#C08A2E',
+}
+
+// The colour that tints an account's card and icon
+export function accountColor(account: Account): string {
+  return LOOK_COLORS[accountLook(account)]
+}

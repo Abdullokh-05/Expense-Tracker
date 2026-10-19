@@ -33,6 +33,12 @@ export const PopUp: React.FC<PopUpProps> = ({
   const { t } = useTranslation()
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
+  // Read through a ref so a parent re-rendering with a new function doesn't redo the setup
+  // below (which would pull focus out of a field being typed in)
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     if (!isOpen) return
@@ -45,7 +51,7 @@ export const PopUp: React.FC<PopUpProps> = ({
     if (cameFromOutside) dialog?.focus()
 
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
     }
     document.addEventListener('keydown', handleKey)
     return () => {
@@ -53,7 +59,7 @@ export const PopUp: React.FC<PopUpProps> = ({
       document.removeEventListener('keydown', handleKey)
       if (cameFromOutside) previous?.focus?.()
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 
