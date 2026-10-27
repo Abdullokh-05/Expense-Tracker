@@ -16,6 +16,7 @@ interface RecurringStore {
   addRecurringTransaction: (
     data: Omit<RecurringTransaction, 'id' | 'createdAt' | 'updatedAt' | 'synced'>
   ) => Promise<RecurringTransaction>
+  editRecurringTransaction: (id: string, patch: Partial<RecurringTransaction>) => Promise<void>
   toggleRecurringTransactionActive: (id: string, isActive: boolean) => Promise<void>
   removeRecurringTransaction: (id: string) => Promise<void>
 }
@@ -40,6 +41,15 @@ export const useRecurringStore = create<RecurringStore>((set, get) => ({
       recurringTransactions: [rt, ...state.recurringTransactions],
     }))
     return rt
+  },
+
+  editRecurringTransaction: async (id, patch) => {
+    await updateRecurringTransaction(id, patch)
+    set((state) => ({
+      recurringTransactions: state.recurringTransactions.map((rt) =>
+        rt.id === id ? { ...rt, ...patch, updatedAt: new Date().toISOString() } : rt
+      ),
+    }))
   },
 
   toggleRecurringTransactionActive: async (id, isActive) => {

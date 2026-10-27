@@ -9,6 +9,7 @@ import { WishlistPage } from '@/pages/Wishlist/WishlistPage'
 import { SettingsPage } from '@/pages/Settings/SettingsPage'
 import { CategoriesPage } from '@/pages/Categories/CategoriesPage'
 import { CategoryPage } from '@/pages/Categories/CategoryPage'
+import { PlannedPage } from '@/pages/Planned/PlannedPage'
 import { useAppStore } from '@/store/appStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { useRecurringStore } from '@/store/recurringStore'
@@ -96,6 +97,7 @@ export const App: React.FC = () => {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/categories" element={<CategoriesPage />} />
         <Route path="/settings/categories/:id" element={<CategoryPage />} />
+        <Route path="/settings/planned" element={<PlannedPage />} />
         {KitPage && (
           <Route path="/kit" element={<Suspense fallback={null}><KitPage /></Suspense>} />
         )}

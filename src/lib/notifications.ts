@@ -20,8 +20,8 @@ export type AppNotification =
   | LimitNotification
   // A recurring payment the app recorded by itself
   | { kind: 'added'; id: string; transaction: Transaction }
-  // A recurring payment due tomorrow
-  | { kind: 'due'; id: string; recurring: RecurringTransaction; date: string }
+  // A planned payment coming up within its reminder time (daysLeft 0: today)
+  | { kind: 'due'; id: string; recurring: RecurringTransaction; date: string; daysLeft: number }
 
 // Automatic entries stay in the list this long
 const ADDED_DAYS = 30
@@ -91,14 +91,34 @@ export function buildNotifications(
     .sort((a, b) => b.date.localeCompare(a.date))
     .map((txn) => ({ kind: 'added', id: `added:${txn.id}`, transaction: txn }))
 
-  const tomorrow = addDays(todayDate(), 1)
+  const today = todayDate()
   const due: AppNotification[] = options.reminders
     ? recurring
-        .filter((item) => item.isActive && item.nextRunDate === tomorrow)
-        .map((item) => ({ kind: 'due', id: `due:${item.id}:${tomorrow}`, recurring: item, date: tomorrow }))
+        .filter((item) => {
+          const lead = remindLead(item)
+          return item.isActive && lead !== null && item.nextRunDate >= today && item.nextRunDate <= addDays(today, lead)
+        })
+        .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate))
+        .map((item) => ({
+          kind: 'due',
+          id: `due:${item.id}:${item.nextRunDate}`,
+          recurring: item,
+          date: item.nextRunDate,
+          daysLeft: daysBetween(today, item.nextRunDate),
+        }))
     : []
 
   return [...pending, ...due, ...limits, ...added]
+}
+
+// Days ahead a planned payment reminds of itself, or null for never
+export function remindLead(item: RecurringTransaction): number | null {
+  return item.remindDaysBefore === undefined ? 1 : item.remindDaysBefore
+}
+
+// Whole days from one date to a later one
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
 }
 
 // Unread ones light the dot on the bell. A payment waiting for an answer always counts.

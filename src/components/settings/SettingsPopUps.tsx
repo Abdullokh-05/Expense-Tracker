@@ -1,21 +1,17 @@
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Download, Pause, Play, Repeat, Trash2, Upload } from 'lucide-react'
-import type { Transaction } from '@/types'
+import { Check, Download, Trash2, Upload } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { useAccountStore } from '@/store/accountStore'
 import { useCategoryStore } from '@/store/categoryStore'
-import { useRecurringStore } from '@/store/recurringStore'
 import { useTemplateStore } from '@/store/templateStore'
-import { useTransactionStore } from '@/store/transactionStore'
 import { activeAccounts } from '@/lib/accounts'
 import { getCategoryName } from '@/lib/categories'
 import { currencyName } from '@/lib/rates'
-import { formatListAmount, formatShortDate } from '@/lib/utils'
+import { formatListAmount } from '@/lib/utils'
 import { SUPPORTED_CURRENCIES } from '@/lib/constants'
 import { PopUp } from '@/components/ui/PopUp'
 import { Button } from '@/components/ui/Button'
-import { ConfirmDialog } from '@/components/ui/BottomSheet'
 import { toast } from '@/components/ui/Toast'
 
 interface PopUpProps {
@@ -29,148 +25,6 @@ const Bubble: React.FC<{ categoryId: string | null }> = ({ categoryId }) => {
     <span className="bub" style={{ '--c': category?.color ?? '#8E8E93' } as React.CSSProperties} aria-hidden="true">
       {category?.icon ?? '📦'}
     </span>
-  )
-}
-
-// ── Recurring payments: pause, resume or delete; payments waiting for an OK on top ──
-export const RecurringPopUp: React.FC<PopUpProps> = ({ isOpen, onClose }) => {
-  const { t, i18n } = useTranslation()
-  const base = useAppStore((s) => s.settings.baseCurrency)
-  const categories = useCategoryStore((s) => s.categories)
-  const accounts = useAccountStore((s) => s.accounts)
-  const { recurringTransactions, toggleRecurringTransactionActive, removeRecurringTransaction } = useRecurringStore()
-  const { transactions, editTransaction } = useTransactionStore()
-  const [deleting, setDeleting] = useState<string | null>(null)
-
-  const pending = transactions.filter((txn) => txn.status === 'pending')
-  const titleOf = (note: string | null, categoryId: string | null) =>
-    note || getCategoryName(categories.find((c) => c.id === categoryId), t)
-  const signed = (type: string, amount: number, currency: string) =>
-    formatListAmount(type === 'income' ? amount : -amount, currency, base, type === 'income')
-
-  const resolve = async (txn: Transaction, status: 'confirmed' | 'skipped') => {
-    try {
-      await editTransaction(txn.id, { status })
-      toast.success(status === 'confirmed' ? t('notifications.added') : t('notifications.skipped'))
-    } catch {
-      toast.error(t('common.error'))
-    }
-  }
-
-  const remove = async () => {
-    if (!deleting) return
-    try {
-      await removeRecurringTransaction(deleting)
-      toast.success(t('settings.recurringDeleted'))
-    } catch {
-      toast.error(t('common.error'))
-    }
-  }
-
-  return (
-    <>
-      <PopUp isOpen={isOpen} onClose={onClose} title={t('sets.recurring')} subtitle={t('sets.recurringSub')}>
-        {pending.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <h3 className="t-over">{t('notifications.needsOk')}</h3>
-            <div className="plist">
-              {pending.map((txn) => (
-                <div key={txn.id} className="pbox">
-                  <div className="prow">
-                    <Bubble categoryId={txn.categoryId} />
-                    <span className="prow-main">
-                      <span className="prow-title">
-                        <span>{titleOf(txn.note, txn.categoryId)}</span>
-                      </span>
-                      <span className="prow-sub">
-                        {[t('notifications.wasDue', { date: formatShortDate(txn.date, i18n.language) }), accounts.find((a) => a.id === txn.accountId)?.name]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </span>
-                    </span>
-                    <span className={`amt${txn.type === 'income' ? ' in' : ''}`}>{signed(txn.type, txn.amount, txn.currency)}</span>
-                  </div>
-                  <div className="pbox-exp grid grid-cols-2 gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => resolve(txn, 'skipped')}>
-                      {t('notifications.skip')}
-                    </Button>
-                    <Button size="sm" onClick={() => resolve(txn, 'confirmed')}>
-                      {t('notifications.addIt')}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {recurringTransactions.length === 0 ? (
-          <div className="empty py-4">
-            <span className="empty-ico">
-              <Repeat size={24} strokeWidth={1.75} />
-            </span>
-            <p className="t-sub">{t('sets.noRecurring')}</p>
-          </div>
-        ) : (
-          <div className="plist">
-            {recurringTransactions.map((item) => {
-              const name = titleOf(item.note, item.categoryId)
-              return (
-                <div key={item.id} className="pbox">
-                  <div className={`prow${item.isActive ? '' : ' opacity-70'}`}>
-                    <Bubble categoryId={item.categoryId} />
-                    <span className="prow-main">
-                      <span className="prow-title">
-                        <span>{name}</span>
-                      </span>
-                      <span className="prow-sub">
-                        {[
-                          t(`transaction.${item.frequency}`),
-                          item.isActive
-                            ? t('sets.next', { date: formatShortDate(item.nextRunDate, i18n.language) })
-                            : t('settings.recurringPaused'),
-                          item.autoCreate ? t('upcoming.automatic') : t('upcoming.asksFirst'),
-                        ].join(' · ')}
-                      </span>
-                    </span>
-                    <span className={`amt${item.type === 'income' ? ' in' : ''}`}>{signed(item.type, item.amount, item.currency)}</span>
-                  </div>
-                  <div className="pbox-exp grid grid-cols-2 gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      aria-label={`${item.isActive ? t('settings.pause') : t('settings.resume')}: ${name}`}
-                      onClick={() => toggleRecurringTransactionActive(item.id, !item.isActive)}
-                    >
-                      {item.isActive ? <Pause size={16} strokeWidth={1.75} aria-hidden="true" /> : <Play size={16} strokeWidth={1.75} aria-hidden="true" />}
-                      {item.isActive ? t('settings.pause') : t('settings.resume')}
-                    </Button>
-                    <button
-                      type="button"
-                      className="btn sm destructive-soft"
-                      aria-label={`${t('common.delete')}: ${name}`}
-                      onClick={() => setDeleting(item.id)}
-                    >
-                      <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
-                      {t('common.delete')}
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </PopUp>
-      <ConfirmDialog
-        isOpen={deleting !== null}
-        onClose={() => setDeleting(null)}
-        onConfirm={remove}
-        title={t('settings.deleteRecurringTitle')}
-        description={t('settings.deleteRecurringText')}
-        confirmLabel={t('common.delete')}
-        danger
-      />
-    </>
   )
 }
 

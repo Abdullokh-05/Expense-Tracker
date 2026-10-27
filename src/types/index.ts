@@ -9,7 +9,7 @@ export type WishImportance = 1 | 2 | 3
 export type WishStatus = 'wanted' | 'bought'
 export type TransactionStatus = 'confirmed' | 'pending' | 'skipped'
 export type PaymentMethod = 'cash' | 'card'
-export type RecurringFrequency = 'weekly' | 'monthly' | 'yearly'
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly'
 export type NoteLanguage = 'ru' | 'en' | 'uz'
 export type AppLanguage = 'ru' | 'en' | 'uz'
 export type AppTheme = 'light' | 'dark' | 'system'
@@ -165,6 +165,9 @@ export interface RecurringTransaction {
   frequency: RecurringFrequency
   nextRunDate: string
   autoCreate: boolean
+  // How many days ahead the bell reminds of it (0: on the day); null: no reminder. Items made
+  // before reminders could be set have none stored and remind a day ahead.
+  remindDaysBefore?: number | null
   isActive: boolean
   createdAt: string
   updatedAt: string

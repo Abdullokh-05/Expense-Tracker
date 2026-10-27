@@ -14,7 +14,7 @@ import {
   Info,
   LogOut,
   RefreshCw,
-  Repeat,
+  CalendarClock,
   Smartphone,
   Sparkles,
   Star,
@@ -59,11 +59,10 @@ import {
   BackupPopUp,
   CurrencyPopUp,
   DefaultAccountPopUp,
-  RecurringPopUp,
   TemplatesPopUp,
 } from '@/components/settings/SettingsPopUps'
 
-type Panel = 'profile' | 'auth' | 'recurring' | 'templates' | 'currency' | 'defaultAccount' | 'backup' | 'shortcut' | 'erase'
+type Panel = 'profile' | 'auth' | 'templates' | 'currency' | 'defaultAccount' | 'backup' | 'shortcut' | 'erase'
 
 const ICON = { size: 18, strokeWidth: 1.75 } as const
 
@@ -107,9 +106,12 @@ export const SettingsPage: React.FC = () => {
   const liveRates = useRatesStore((s) => s.rates)
   const base = settings.baseCurrency
 
-  // Home's "payments still due" and the bell link here with ?open=recurring
+  // Older links to the recurring list (?open=recurring) go to Planned payments
   const [searchParams] = useSearchParams()
-  const [panel, setPanel] = useState<Panel | null>(searchParams.get('open') === 'recurring' ? 'recurring' : null)
+  useEffect(() => {
+    if (searchParams.get('open') === 'recurring') navigate('/settings/planned', { replace: true })
+  }, [searchParams, navigate])
+  const [panel, setPanel] = useState<Panel | null>(null)
   const close = () => setPanel(null)
 
   // ── Sign-in and sync (only when a sync server is set up) ──
@@ -331,7 +333,14 @@ export const SettingsPage: React.FC = () => {
           chevron
           to="/settings/categories"
         />
-        <Row icon={<Repeat {...ICON} />} title={t('sets.recurring')} value={recurring.length} chevron onClick={() => setPanel('recurring')} />
+        <Row
+          icon={<CalendarClock {...ICON} />}
+          title={t('planned.title')}
+          subtitle={t('planned.settingsSub')}
+          value={recurring.filter((r) => r.isActive).length}
+          chevron
+          to="/settings/planned"
+        />
         <Row icon={<Zap {...ICON} />} title={t('sets.templates')} value={templates.length} chevron onClick={() => setPanel('templates')} />
         <Row icon={<Coins {...ICON} />} title={t('sets.mainCurrency')} value={base} chevron onClick={() => setPanel('currency')} />
         <Row
@@ -461,7 +470,6 @@ export const SettingsPage: React.FC = () => {
         onLogin={(email, password) => authenticate(email, password, false)}
         onRegister={(email, password) => authenticate(email, password, true)}
       />
-      <RecurringPopUp isOpen={panel === 'recurring'} onClose={close} />
       <TemplatesPopUp isOpen={panel === 'templates'} onClose={close} />
       <CurrencyPopUp isOpen={panel === 'currency'} onClose={close} onPick={changeCurrency} busy={converting} />
       <DefaultAccountPopUp isOpen={panel === 'defaultAccount'} onClose={close} />

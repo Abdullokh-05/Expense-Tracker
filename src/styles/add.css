@@ -194,3 +194,10 @@
   .frow:has(> .frow-val) > .frow-val { flex: 1 1 0; max-width: none; }
   .frow-input { flex: 1 1 0; width: auto; }
 }
+
+/* Planned payments: the amount, and under it when it's due */
+@layer components {
+  .plan-end { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; max-width: 45%; }
+  .plan-when { font-size: 13px; line-height: 1.3; color: var(--ink-2); white-space: nowrap; }
+  .plan-when.close { color: var(--warn); font-weight: 600; }
+}

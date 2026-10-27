@@ -1,6 +1,9 @@
-import type { Account, RecurringTransaction } from '@/types'
+import type { Account, RecurringFrequency, RecurringTransaction } from '@/types'
 import type { Converter } from '@/lib/accounts'
 import { advanceByFrequency } from '@/lib/utils'
+
+// How often a planned payment can come back, shortest first
+export const FREQUENCIES: RecurringFrequency[] = ['daily', 'weekly', 'monthly', 'yearly']
 
 export interface UpcomingPayment {
   recurring: RecurringTransaction

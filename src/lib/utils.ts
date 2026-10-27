@@ -64,6 +64,8 @@ export function daysBetween(from: string, to: string): number {
 // Next occurrence of a recurring transaction
 export function advanceByFrequency(dateStr: string, frequency: RecurringFrequency): string {
   switch (frequency) {
+    case 'daily':
+      return addDays(dateStr, 1)
     case 'weekly':
       return addDays(dateStr, 7)
     case 'monthly':

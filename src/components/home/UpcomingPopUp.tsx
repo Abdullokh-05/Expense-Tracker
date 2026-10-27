@@ -92,7 +92,7 @@ export const UpcomingPopUp: React.FC<UpcomingPopUpProps> = ({
           size="sm"
           onClick={() => {
             onClose()
-            navigate('/settings?open=recurring')
+            navigate('/settings/planned')
           }}
         >
           {t('upcoming.manageShort')}

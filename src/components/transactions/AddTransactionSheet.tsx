@@ -25,6 +25,7 @@ import { toast } from '@/components/ui/Toast'
 import { AccountIcon } from '@/components/accounts/AccountCard'
 import { CategoryEditPopUp } from '@/components/categories/CategoryEditPopUp'
 import { TransferCards } from '@/components/transactions/TransferCards'
+import { FREQUENCIES } from '@/lib/upcoming'
 import { useAppStore } from '@/store/appStore'
 import { useCategoryStore } from '@/store/categoryStore'
 import { useTransactionStore } from '@/store/transactionStore'
@@ -426,6 +427,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
             nextRunDate: advanceByFrequency(date, frequency),
             autoCreate,
             isActive: true,
+            remindDaysBefore: 1,
           })
           recurringTransactionId = rt.id
         }
@@ -690,7 +692,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const today = todayDate()
   const dateLabel =
     date === today ? t('common.today') : date === addDays(today, -1) ? t('common.yesterday') : formatShortDate(date, i18n.language)
-  const repeatLabel = isRecurring ? `${t(`transaction.${frequency}`)} · ${autoCreate ? t('add.auto') : t('add.ask')}` : t('add.off')
+  const repeatLabel = isRecurring ? t(`planned.every_${frequency}`) : t('add.off')
   const nextDate = advanceByFrequency(date, frequency)
   const typeLabel = (tx: TransactionType) =>
     tx === 'expense' ? t('transaction.expense') : tx === 'income' ? t('transaction.income') : t('transaction.transfer')
@@ -1177,7 +1179,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
               label={t('add.howOften')}
               value={frequency}
               onChange={setFrequency}
-              options={(['weekly', 'monthly', 'yearly'] as RecurringFrequency[]).map((f) => ({ value: f, label: t(`transaction.${f}`) }))}
+              options={FREQUENCIES.map((f) => ({ value: f, label: t(`planned.unit_${f}`) }))}
             />
             <span className="t-label">{t('add.whenDue')}</span>
             <SegmentedControl<'auto' | 'ask'>

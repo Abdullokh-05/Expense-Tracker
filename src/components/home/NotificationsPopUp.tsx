@@ -168,13 +168,19 @@ export const NotificationsPopUp: React.FC<NotificationsPopUpProps> = ({
             const account = accounts.find((a) => a.id === due.accountId)
             const name = due.note || getCategoryName(categories.find((c) => c.id === due.categoryId), t)
             return (
-              <button key={item.id} type="button" className="prow" onClick={() => go(item.id, () => navigate('/settings?open=recurring'))}>
+              <button key={item.id} type="button" className="prow" onClick={() => go(item.id, () => navigate('/settings/planned'))}>
                 <span className="bub" style={{ '--c': categories.find((c) => c.id === due.categoryId)?.color ?? '#8E8E93' } as React.CSSProperties} aria-hidden="true">
                   {categories.find((c) => c.id === due.categoryId)?.icon ?? '📦'}
                 </span>
                 <span className="prow-main">
                   <span className="prow-title">
-                    <span>{t('notifications.dueTomorrow', { name })}</span>
+                    <span>
+                      {item.daysLeft === 0
+                        ? t('notifications.dueToday', { name })
+                        : item.daysLeft === 1
+                          ? t('notifications.dueTomorrow', { name })
+                          : t('notifications.dueIn', { name, count: item.daysLeft })}
+                    </span>
                   </span>
                   <span className="prow-sub">
                     {[
@@ -222,7 +228,7 @@ export const NotificationsPopUp: React.FC<NotificationsPopUpProps> = ({
           className="prow"
           onClick={() => {
             onClose()
-            navigate('/settings?open=recurring')
+            navigate('/settings/planned')
           }}
         >
           <span className="prow-ico" aria-hidden="true">
