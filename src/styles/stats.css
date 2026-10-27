@@ -12,20 +12,55 @@
   .trend.good > svg { color: var(--in); }
   .trend.bad > svg { color: var(--danger-text); }
 
-  /* month columns */
-  .cchart { position: relative; padding: 20px 0 0 40px; }
-  .cgrid { position: absolute; left: 40px; right: 0; height: 1px; background: var(--viz-grid); pointer-events: none; }
-  .cgrid > span { position: absolute; right: calc(100% + 8px); top: -8px; font-size: 11px; line-height: 16px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .ccols { position: relative; display: flex; align-items: stretch; }
-  .ccol { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; border-radius: 12px; }
-  .ccol-plot { position: relative; height: 128px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
-  .cbar { width: 22px; max-width: 70%; border-radius: 4px 4px 0 0; background: var(--viz-muted); transition: background-color var(--ease), height 240ms ease; }
-  .ccol:hover .cbar { background: color-mix(in srgb, var(--viz-mark) 45%, var(--viz-muted)); }
-  .ccol.on .cbar { background: var(--viz-mark); }
+  /* the chart: a day per bar for a month, or a month per bar for a year. The amounts on the
+     left stay put while the bars scroll sideways when they don't fit. */
+  .schart { position: relative; padding-left: 40px; }
+  .saxis { position: absolute; left: 0; width: 34px; text-align: right; font-size: 11px; line-height: 16px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
+  .schart-scroll { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .schart-scroll::-webkit-scrollbar { display: none; }
+  .schart-plot { position: relative; padding-top: 20px; }
+  .sgrid { position: absolute; left: 0; right: 0; height: 1px; background: var(--viz-grid); pointer-events: none; }
+  .sbase { position: absolute; left: 0; right: 0; top: 148px; height: 1px; background: var(--line-2); pointer-events: none; }
+  .scols { position: relative; display: flex; align-items: stretch; }
+  .scol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; border-radius: 8px; }
+  .scol:hover .scol-plot { background: color-mix(in srgb, var(--fill) 60%, transparent); }
+  .scol-plot { position: relative; height: 128px; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 1px; border-radius: 6px 6px 0 0; transition: background-color var(--ease); }
+  .sbar { width: 22px; max-width: 64%; border-radius: 3px 3px 0 0; background: var(--viz-mark); transition: background-color var(--ease), opacity var(--ease), height 240ms ease; }
+  /* income and outcome side by side, in the Home card's green and peach */
+  .sbar.in, .sbar.out { width: 10px; max-width: 42%; }
+  .sbar.in { background: var(--hero-in); }
+  .sbar.out { background: var(--hero-out); }
+  .slegend { display: flex; gap: 16px; font-size: 13px; color: var(--ink-2); margin-bottom: -8px; }
+  .slegend span { display: inline-flex; align-items: center; gap: 6px; }
+  .slegend i { width: 10px; height: 10px; border-radius: 3px; }
+  .slegend i.in { background: var(--hero-in); }
+  .slegend i.out { background: var(--hero-out); }
+  /* a bar picked: it keeps its colour, the rest step back */
+  .schart.picking .scol:not(.on) .sbar { background: var(--viz-muted); }
+  .schart.picking .scol:not(.on) .sbar.in, .schart.picking .scol:not(.on) .sbar.out { opacity: .35; }
+  .scol.on .scol-plot { background: color-mix(in srgb, var(--accent-soft) 70%, transparent); }
+  .scol-label { height: 24px; display: grid; place-items: center; font-size: 11px; line-height: 1; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .scol.today .scol-label { color: var(--ink); font-weight: 600; }
+  .scol.on .scol-label { color: var(--accent-text); font-weight: 700; }
   .cval { position: absolute; left: 50%; transform: translateX(-50%); font-size: 12px; line-height: 16px; font-weight: 600; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; padding: 0 4px; border-radius: 4px; background: var(--surface); z-index: 1; }
-  .cmon { height: 24px; display: grid; place-items: center; font-size: 12px; line-height: 1; color: var(--ink-2); white-space: nowrap; }
-  .ccol.on .cmon { color: var(--ink); font-weight: 600; }
-  .cbase { position: absolute; left: 40px; right: 0; top: 148px; height: 1px; background: var(--line-2); pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .sbar, .scol-plot { transition: none; } }
+
+  /* the period between its arrows, and Day | Month */
+  .srange { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+  .srange-nav { display: flex; align-items: center; gap: 2px; min-width: 0; margin-left: -10px; }
+  .srange-label { font-size: 16px; line-height: 1.3; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; text-align: center; }
+  .srange .seg { flex: none; }
+  .srange .seg button { padding: 0 10px; font-size: 14px; }
+
+  /* income, outcome and net, one per row */
+  .srows { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+  .srows.flat { background: var(--fill); border-radius: 14px; padding: 10px 14px; }
+  .srow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+  .srow dt { font-size: 14px; color: var(--ink-2); }
+  .srow dd { margin: 0; font-size: 16px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .srow.net { border-top: 1px solid var(--line); padding-top: 6px; }
+  .srow.net dt { color: var(--ink); font-weight: 600; }
+  .picked .hist-list { margin: 0 -16px; }
 
   /* KPI tiles */
   .ktile { background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--sh-1); display: flex; flex-direction: column; gap: 2px; min-width: 0; }

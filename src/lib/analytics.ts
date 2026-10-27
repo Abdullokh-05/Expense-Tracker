@@ -61,6 +61,44 @@ export function getCategorySpending(
     .sort((a, b) => b.amount - a.amount)
 }
 
+export interface PeriodBucket {
+  // "2026-10-14" for a day, "2026-10" for a month
+  key: string
+  from: string
+  to: string
+  income: number
+  outcome: number
+}
+
+// A month split into its days, or a year into its months, each with what came in and went out.
+// Every day (or month) is there, empty ones too. Transfers between the user's own accounts are
+// neither, so they never count. Days are the entries' own calendar dates (Tashkent days, as
+// recorded), never UTC timestamps.
+export function getPeriodBuckets(transactions: Transaction[], range: DateRange, unit: 'day' | 'month'): PeriodBucket[] {
+  const buckets: PeriodBucket[] = []
+  if (unit === 'day') {
+    for (let day = range.from; day <= range.to; day = addDays(day, 1)) {
+      buckets.push({ key: day, from: day, to: day, income: 0, outcome: 0 })
+    }
+  } else {
+    const year = Number(range.from.slice(0, 4))
+    for (let month = 1; month <= 12; month++) {
+      const key = `${year}-${String(month).padStart(2, '0')}`
+      const last = new Date(year, month, 0).getDate()
+      buckets.push({ key, from: `${key}-01`, to: `${key}-${String(last).padStart(2, '0')}`, income: 0, outcome: 0 })
+    }
+  }
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]))
+  for (const txn of confirmedInRange(transactions, range)) {
+    if (txn.type === 'transfer') continue
+    const bucket = byKey.get(unit === 'day' ? txn.date : txn.date.slice(0, 7))
+    if (!bucket) continue
+    if (txn.type === 'income') bucket.income = roundMoney(bucket.income + txn.amountInBaseCurrency)
+    else bucket.outcome = roundMoney(bucket.outcome + txn.amountInBaseCurrency)
+  }
+  return buckets
+}
+
 export interface SubcategorySpending {
   // The subcategory's id, or '' for entries in the category without one
   id: string

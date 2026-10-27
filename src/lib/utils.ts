@@ -29,8 +29,14 @@ export function parseDateString(dateStr: string): Date {
   return new Date(year, month - 1, day)
 }
 
+// Days, months and years are Tashkent's, wherever the phone's clock is set: an entry made at
+// 00:30 in Tashkent belongs to that day, not to the day before in UTC or another time zone
+export const APP_TIME_ZONE = 'Asia/Tashkent'
+const tashkentDay = new Intl.DateTimeFormat('en-US', { timeZone: APP_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
+
 export function todayDate(): string {
-  return toDateString(new Date())
+  const part = (type: string) => tashkentDay.formatToParts(new Date()).find((p) => p.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')}`
 }
 
 export function addDays(dateStr: string, days: number): string {
@@ -233,8 +239,9 @@ const COMPACT_UNITS: Record<'en' | 'ru' | 'uz', [string, string, string]> = {
   uz: [' ming', ' mln', ' mlrd'],
 }
 
-// Short form for chart labels: 5 200 000 → "5.2M" / "5,2 млн" / "5,2 mln"
-export function formatCompact(amount: number, locale = i18n.language): string {
+// Short form for chart labels: 5 200 000 → "5.2M" / "5,2 млн" / "5,2 mln". `tight` keeps the
+// K / M / B letters in every language (5,2M), for a chart's narrow axis.
+export function formatCompact(amount: number, locale = i18n.language, { tight = false }: { tight?: boolean } = {}): string {
   const lang = locale.startsWith('ru') ? 'ru' : isUzbek(locale) ? 'uz' : 'en'
   const sign = amount < 0 ? '−' : ''
   const abs = Math.abs(amount)
@@ -243,7 +250,7 @@ export function formatCompact(amount: number, locale = i18n.language): string {
     if (abs >= size) {
       const value = Math.round((abs / size) * 10) / 10
       const text = String(value).replace('.', lang === 'en' ? '.' : ',')
-      return `${sign}${text}${COMPACT_UNITS[lang][unit]}`
+      return `${sign}${text}${COMPACT_UNITS[tight ? 'en' : lang][unit]}`
     }
   }
   // Under a thousand the amount is short already: 643, 23,67
@@ -258,8 +265,8 @@ export type RangePeriod = 'today' | 'week' | 'month' | 'year'
 // Get date range for a given period. offset 0 is the current period, -1 the one before it, etc.
 // "week" is a rolling 7 days ending today; "month" and "year" are whole calendar periods.
 export function getDateRange(period: RangePeriod, offset = 0): { from: string; to: string } {
-  const now = new Date()
   const today = todayDate()
+  const now = parseDateString(today)
 
   switch (period) {
     case 'today': {
@@ -346,7 +353,7 @@ export function formatDayLabel(dateStr: string, locale = i18n.language): string 
 // "Monday, 12 October" for any day, today included (the year only when it isn't this one)
 export function formatLongDate(dateStr: string, locale = i18n.language): string {
   const date = parseDateString(dateStr)
-  const sameYear = date.getFullYear() === new Date().getFullYear()
+  const sameYear = date.getFullYear() === parseDateString(todayDate()).getFullYear()
   if (isUzbek(locale)) {
     const weekday = UZ_WEEKDAYS[date.getDay()]
     const day = `${date.getDate()}-${formatMonthName(date, locale)}`
