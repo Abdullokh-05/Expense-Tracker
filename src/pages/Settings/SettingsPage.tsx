@@ -160,7 +160,8 @@ export const SettingsPage: React.FC = () => {
     setAuthBusy(true)
     try {
       const { data, error } = register
-        ? await supabase.auth.signUp({ email, password })
+        ? // The confirmation email links back to wherever the app is open (the live site or localhost)
+          await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
         : await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
       if (data.user) {
