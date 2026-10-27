@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Archive, ArrowLeftRight, Plus } from 'lucide-react'
+import { Archive, ArrowLeftRight, Plus, Trash2 } from 'lucide-react'
 import type { Account } from '@/types'
 import { useAppStore } from '@/store/appStore'
 import { useAccountStore } from '@/store/accountStore'
@@ -26,6 +26,7 @@ export const AccountsPage: React.FC = () => {
   const settings = useAppStore((s) => s.settings)
   const allAccounts = useAccountStore((s) => s.accounts)
   const editAccount = useAccountStore((s) => s.editAccount)
+  const removeAccount = useAccountStore((s) => s.removeAccount)
   const transactions = useTransactionStore((s) => s.transactions)
   const liveRates = useRatesStore((s) => s.rates)
   const ratesUpdatedAt = useRatesStore((s) => s.updatedAt)
@@ -64,6 +65,15 @@ export const AccountsPage: React.FC = () => {
       ...(settings.customRates ?? []).filter((r) => r.quote === base).map((r) => r.code),
     ]),
   ].filter((code) => code !== base)
+
+  const remove = async (account: Account) => {
+    try {
+      await removeAccount(account.id)
+      toast.success(t('acct.deleted'))
+    } catch {
+      toast.error(t('common.error'))
+    }
+  }
 
   const restore = async (account: Account) => {
     try {
@@ -177,6 +187,17 @@ export const AccountsPage: React.FC = () => {
                       })}
                     </span>
                   </span>
+                  {!transactions.some((txn) => txn.accountId === account.id || txn.toAccountId === account.id) && (
+                    <button
+                      type="button"
+                      className="iconbtn danger"
+                      aria-label={`${t('acct.delete')}: ${account.name}`}
+                      title={t('acct.delete')}
+                      onClick={() => remove(account)}
+                    >
+                      <Trash2 size={18} strokeWidth={1.75} />
+                    </button>
+                  )}
                   <Button variant="tinted" size="sm" onClick={() => restore(account)}>
                     {t('accounts.restore')}
                   </Button>

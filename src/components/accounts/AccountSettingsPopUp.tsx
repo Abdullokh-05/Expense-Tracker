@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Archive, Coins, Gift, Pencil, Scale, Sigma, Star } from 'lucide-react'
+import { Archive, Coins, Gift, Pencil, Scale, Sigma, Star, Trash2 } from 'lucide-react'
 import type { AccountType } from '@/types'
 import { useAppStore } from '@/store/appStore'
 import { useAccountStore } from '@/store/accountStore'
@@ -31,7 +31,7 @@ type Section = 'name' | 'look' | 'balance' | 'currency'
 export const AccountSettingsPopUp: React.FC<AccountSettingsPopUpProps> = ({ accountId, onClose }) => {
   const { t } = useTranslation()
   const base = useAppStore((s) => s.settings.baseCurrency)
-  const { accounts, editAccount, setDefaultAccount, setWishlistFund } = useAccountStore()
+  const { accounts, editAccount, removeAccount, setDefaultAccount, setWishlistFund } = useAccountStore()
   const transactions = useTransactionStore((s) => s.transactions)
   const masked = useUiStore((s) => s.amountsHidden)
   const convert = useConverter()
@@ -93,6 +93,17 @@ export const AccountSettingsPopUp: React.FC<AccountSettingsPopUpProps> = ({ acco
     await save({ startingBalance: roundMoney(account.startingBalance + wanted - balance) })
     toast.success(t('acct.corrected'))
     setOpen(null)
+  }
+
+  // An account with entries keeps them; only an empty one can go for good
+  const remove = async () => {
+    try {
+      await removeAccount(account.id)
+      toast.success(t('acct.deleted'))
+      onClose()
+    } catch {
+      toast.error(t('common.error'))
+    }
   }
 
   const archive = async () => {
@@ -290,6 +301,9 @@ export const AccountSettingsPopUp: React.FC<AccountSettingsPopUpProps> = ({ acco
           chevron={activeCount > 1}
           onClick={activeCount > 1 ? archive : undefined}
         />
+        {!used && (activeCount > 1 || account.isArchived) && (
+          <Row icon={<Trash2 size={18} strokeWidth={1.75} />} title={t('acct.delete')} subtitle={t('acct.deleteSub')} danger chevron onClick={remove} />
+        )}
       </div>
     </PopUp>
   )

@@ -560,7 +560,10 @@
     "archive": "Archive account",
     "archiveSub": "Keeps its history, hides the card",
     "onlyAccount": "Your only account can't be archived",
-    "untitled": "Untitled account"
+    "untitled": "Untitled account",
+    "delete": "Delete account",
+    "deleteSub": "Nothing was recorded on it, so it can go for good.",
+    "deleted": "Account deleted"
   },
   "colors": {
     "blue": "Blue",

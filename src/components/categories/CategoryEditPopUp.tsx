@@ -339,8 +339,8 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
                 {category.isArchived ? t('catEdit.restore') : t('catEdit.archive')}
               </button>
             )}
-            {/* "Other" is where deleted categories' entries go, so it can't be deleted itself */}
-            {!isOtherCategory(category) && (
+            {/* "Other" is where deleted categories' entries go, so the last one can't be deleted */}
+            {(!isOtherCategory(category) || categories.filter((c) => c.kind === category.kind && isOtherCategory(c)).length > 1) && (
               <button type="button" className="btn ghost text-danger-text" onClick={() => setDeleting(category)}>
                 <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
                 {t(isSub ? 'catEdit.deleteSubButton' : 'catEdit.delete')}

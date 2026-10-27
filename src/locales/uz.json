@@ -560,7 +560,10 @@
     "archive": "Hisobni arxivlash",
     "archiveSub": "Tarixi saqlanadi, karta yashiriladi",
     "onlyAccount": "Yagona hisobni arxivlab bo'lmaydi",
-    "untitled": "Nomsiz hisob"
+    "untitled": "Nomsiz hisob",
+    "delete": "Hisobni o‘chirish",
+    "deleteSub": "Unda birorta ham yozuv yo‘q, shuning uchun uni butunlay o‘chirish mumkin.",
+    "deleted": "Hisob o‘chirildi"
   },
   "colors": {
     "blue": "Ko'k",

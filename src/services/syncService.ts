@@ -4,6 +4,7 @@ import { fromStored, MONEY_FIELDS, toStored, type MoneyTable } from '@/db/money'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { useAppStore } from '@/store/appStore'
 import { reloadAllData } from '@/store/reloadAll'
+import { mergeDuplicates } from '@/services/dedupe'
 import type { SyncQueueItem, SyncTable } from '@/types'
 
 // Two-way sync with Supabase while signed in. Every change made on this device waits in the
@@ -107,8 +108,10 @@ async function run(): Promise<SyncResult> {
 
   await push(userId, result)
   await pull(result)
+  // Built-ins and starting accounts made separately on two devices become one
+  const merged = await mergeDuplicates(userId)
 
-  if (adopted > 0 || result.pulled > 0) await reloadAllData()
+  if (adopted > 0 || result.pulled > 0 || merged > 0) await reloadAllData()
   return result
 }
 

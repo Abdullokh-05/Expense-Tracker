@@ -20,7 +20,7 @@ interface CategoryStore {
   categories: Category[]
   isLoading: boolean
   loadCategories: () => Promise<void>
-  addCategory: (data: Omit<Category, 'id' | 'createdAt' | 'updatedAt' | 'synced'>) => Promise<Category>
+  addCategory: (data: Omit<Category, 'id' | 'createdAt' | 'updatedAt' | 'synced'> & { id?: string }) => Promise<Category>
   editCategory: (id: string, patch: Partial<Category>) => Promise<void>
   archiveCategoryById: (id: string) => Promise<void>
   reorderCategories: (orderedIds: string[]) => Promise<void>
@@ -83,10 +83,17 @@ export const useCategoryStore = create<CategoryStore>((set, get) => ({
     const category = get().categories.find((c) => c.id === id)
     if (!category) return
     const kind = getCategoryKind(category)
-    // "Other" takes the entries; if the user has lost it, it comes back first
+    // "Other" takes the entries (a second "Other" being deleted hands them to the first); if
+    // the user has lost it, it comes back first, under its fixed id
     const other =
-      findOtherCategory(get().categories, kind) ??
-      (await get().addCategory({ ...otherCategorySeed(kind), userId: getCurrentUserId(), kind, isDefault: true }))
+      findOtherCategory(get().categories.filter((c) => c.id !== id), kind) ??
+      (await get().addCategory({
+        ...otherCategorySeed(kind),
+        id: kind === 'expense' ? 'def-other' : 'def-otherIncome',
+        userId: getCurrentUserId(),
+        kind,
+        isDefault: true,
+      }))
     await deleteCategoryMovingEntries(getCurrentUserId(), id, other.id)
     await Promise.all([
       get().loadCategories(),

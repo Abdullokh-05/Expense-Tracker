@@ -14,7 +14,13 @@ import type {
   SyncOperation,
   SyncTable,
 } from '@/types'
-import { DEFAULT_CATEGORIES, DEFAULT_INCOME_CATEGORIES, LEGACY_CATEGORY_COLORS } from '@/lib/constants'
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_CATEGORY_KEYS,
+  DEFAULT_INCOME_CATEGORIES,
+  DEFAULT_INCOME_CATEGORY_KEYS,
+  LEGACY_CATEGORY_COLORS,
+} from '@/lib/constants'
 import { generateId, nowISO, todayDate, roundMoney } from '@/lib/utils'
 
 // =====================
@@ -43,11 +49,14 @@ export async function getCategoryById(id: string): Promise<Category | undefined>
   return db.categories.get(id)
 }
 
-export async function createCategory(data: Omit<Category, 'id' | 'createdAt' | 'updatedAt' | 'synced'>): Promise<Category> {
+// A built-in (or recreated built-in) passes its fixed id; the rest get a new one
+export async function createCategory(
+  data: Omit<Category, 'id' | 'createdAt' | 'updatedAt' | 'synced'> & { id?: string }
+): Promise<Category> {
   const now = nowISO()
   const category: Category = {
     ...data,
-    id: generateId(),
+    id: data.id ?? generateId(),
     createdAt: now,
     updatedAt: now,
     synced: false,
@@ -151,9 +160,9 @@ export async function seedDefaultCategories(userId: string): Promise<void> {
   const existing = await db.categories.where('userId').equals(userId).count()
   if (existing > 0) return
   const now = nowISO()
-  const defaults: Category[] = DEFAULT_CATEGORIES.map((c) => ({
+  const defaults: Category[] = DEFAULT_CATEGORIES.map((c, index) => ({
     ...c,
-    id: generateId(),
+    id: `def-${DEFAULT_CATEGORY_KEYS[index]}`,
     userId,
     kind: 'expense',
     isDefault: true,
@@ -172,12 +181,21 @@ export async function getAccounts(userId = 'guest'): Promise<Account[]> {
   return accounts.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
 }
 
-export async function createAccount(data: Omit<Account, 'id' | 'createdAt' | 'updatedAt' | 'synced'>): Promise<Account> {
+export async function createAccount(
+  data: Omit<Account, 'id' | 'createdAt' | 'updatedAt' | 'synced'> & { id?: string }
+): Promise<Account> {
   const now = nowISO()
-  const account: Account = { ...data, id: generateId(), createdAt: now, updatedAt: now, synced: false }
+  const account: Account = { ...data, id: data.id ?? generateId(), createdAt: now, updatedAt: now, synced: false }
   await db.accounts.add(toStored('accounts', account))
   await addToSyncQueue('accounts', 'create', account.id, account)
   return account
+}
+
+// Only for an account nothing was recorded on (the app checks first); planned payments and
+// templates that used it are left without an account and ask for one when used
+export async function deleteAccount(id: string): Promise<void> {
+  await db.accounts.delete(id)
+  await addToSyncQueue('accounts', 'delete', id, { id })
 }
 
 export async function updateAccount(id: string, patch: Partial<Account>): Promise<void> {
@@ -253,9 +271,9 @@ export async function ensureDefaults(
   const categories = await db.categories.where('userId').equals(userId).toArray()
   if (!categories.some((c) => c.kind === 'income')) {
     await db.categories.bulkAdd(
-      DEFAULT_INCOME_CATEGORIES.map((c) => ({
+      DEFAULT_INCOME_CATEGORIES.map((c, index) => ({
         ...c,
-        id: generateId(),
+        id: `def-${DEFAULT_INCOME_CATEGORY_KEYS[index]}`,
         userId,
         kind: 'income' as const,
         isDefault: true,
@@ -277,8 +295,8 @@ export async function ensureDefaults(
   if (accounts.length === 0) {
     const base = { userId, currency: baseCurrency, startingBalance: 0, includeInTotal: true, isWishlistFund: false, isArchived: false }
     // Created one after the other so their order (card first) is stable
-    await createAccount({ ...base, name: accountNames.card, type: 'card' })
-    await createAccount({ ...base, name: accountNames.cash, type: 'cash' })
+    await createAccount({ ...base, id: 'def-card', name: accountNames.card, type: 'card' })
+    await createAccount({ ...base, id: 'def-cash', name: accountNames.cash, type: 'cash' })
     accounts = await getAccounts(userId)
   }
 

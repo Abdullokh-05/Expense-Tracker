@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Account } from '@/types'
-import { getAccounts, createAccount, updateAccount } from '@/db/operations'
+import { getAccounts, createAccount, deleteAccount, updateAccount } from '@/db/operations'
 import { getCurrentUserId } from '@/store/appStore'
 
 interface AccountStore {
@@ -9,6 +9,7 @@ interface AccountStore {
   loadAccounts: () => Promise<void>
   addAccount: (data: Omit<Account, 'id' | 'createdAt' | 'updatedAt' | 'synced'>) => Promise<Account>
   editAccount: (id: string, patch: Partial<Account>) => Promise<void>
+  removeAccount: (id: string) => Promise<void>
   setWishlistFund: (id: string | null) => Promise<void>
   setDefaultAccount: (id: string | null) => Promise<void>
 }
@@ -41,6 +42,11 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
         a.id === id ? { ...a, ...patch, updatedAt: new Date().toISOString() } : a
       ),
     }))
+  },
+
+  removeAccount: async (id) => {
+    await deleteAccount(id)
+    set((state) => ({ accounts: state.accounts.filter((a) => a.id !== id) }))
   },
 
   // Only one account at a time holds the wishlist savings; null clears it
