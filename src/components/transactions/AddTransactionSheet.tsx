@@ -99,13 +99,14 @@ const FormRow: React.FC<{
   icon: React.ReactNode
   title: string
   value?: React.ReactNode
-  required?: boolean
+  // red for what saving needs, amber for what can wait
+  tone?: 'req' | 'later'
   onClick: () => void
-}> = ({ icon, title, value, required, onClick }) => (
+}> = ({ icon, title, value, tone, onClick }) => (
   <button type="button" className="frow" onClick={onClick}>
     {icon}
     <span className="frow-title">{title}</span>
-    <span className={`frow-val${required ? ' req' : ''}`}>{value}</span>
+    <span className={`frow-val${tone ? ` ${tone}` : ''}`}>{value}</span>
     <ChevronRight size={18} strokeWidth={2} className="frow-go" aria-hidden="true" />
   </button>
 )
@@ -136,6 +137,8 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const navigate = useNavigate()
   const { settings } = useAppStore()
   const isEditing = Boolean(transaction)
+  // A planned payment waiting to be paid: saving marks it paid, once it has an account
+  const paying = transaction?.status === 'pending'
   // Wide screens type with a real keyboard, so they get a dialog without the keypad
   const wide = useWideScreen()
   // Phones use the keypad unless Settings asks for the phone's own keyboard
@@ -151,6 +154,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const addTransaction = useTransactionStore((s) => s.addTransaction)
   const editTransaction = useTransactionStore((s) => s.editTransaction)
   const removeTransaction = useTransactionStore((s) => s.removeTransaction)
+  const recurring = useRecurringStore((s) => s.recurringTransactions)
   const addRecurringTransaction = useRecurringStore((s) => s.addRecurringTransaction)
   const removeRecurringTransaction = useRecurringStore((s) => s.removeRecurringTransaction)
   const { templates, addTemplate, removeTemplate } = useTemplateStore()
@@ -208,8 +212,9 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       const active = allAccounts.filter((a) => !a.isArchived)
       const remembered = localStorage.getItem(LAST_ACCOUNT_KEY)
       // The account marked "default for new entries" wins over the one used last time
-      const firstAccount =
-        transaction?.accountId ??
+      const firstAccount = transaction
+        ? (transaction.accountId ?? '')
+        :
         active.find((a) => a.isDefault)?.id ??
         active.find((a) => a.id === remembered)?.id ??
         active[0]?.id ??
@@ -340,13 +345,14 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   // "Saved · −45 000 soʻm · Transport", with Undo for something just added
   const announce = (saved: { amount: number; currency: string; type: TransactionType; what: string }, undo?: () => void) => {
     const signed = saved.type === 'expense' ? -saved.amount : saved.amount
-    const message = `${undo ? t('add.saved') : t('add.updated')} · ${formatAmount(signed, saved.currency, { signed: saved.type === 'income' })} · ${saved.what}`
+    const message = `${undo ? t('add.saved') : paying ? t('add.markPaid') : t('add.updated')} · ${formatAmount(signed, saved.currency, { signed: saved.type === 'income' })} · ${saved.what}`
     if (undo) toast.success(message, { label: t('add.undo'), onClick: undo })
     else toast.success(message)
   }
 
   // "Машина › Бензин" for a category picked with one of its subcategories
   const categoryLabel = (categoryId: string, subcategoryId?: string) => {
+    if (!categoryId) return t('transaction.noCategory')
     const name = getCategoryName(categories.find((c) => c.id === categoryId), t)
     const sub = subcategoryId ? categories.find((c) => c.id === subcategoryId) : undefined
     return sub ? `${name} › ${getCategoryName(sub, t)}` : name
@@ -376,10 +382,6 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         toast.error(t('transaction.receivedAmountRequired'))
         return
       }
-    } else if (!finalCategoryId) {
-      // The category list opens so one can be picked
-      openView('category')
-      return
     }
     if (rate === null) {
       toast.error(t('transaction.rateUnavailable'))
@@ -395,7 +397,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         currency,
         amountInBaseCurrency: roundMoney(parsedAmount * rate),
         exchangeRate: rate,
-        categoryId: isTransfer ? null : finalCategoryId,
+        categoryId: isTransfer ? null : finalCategoryId || null,
         subcategoryId: isTransfer ? null : finalSubcategoryId || null,
         accountId: account.id,
         toAccountId: isTransfer ? toAccount!.id : null,
@@ -407,30 +409,34 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       }
       const what = isTransfer ? `${account.name} → ${toAccount!.name}` : categoryLabel(finalCategoryId, finalSubcategoryId)
 
+      // Repeat turned on: this entry starts a planned payment, the next one a period later
+      const startPlanned = async () => {
+        if (!isRecurring || type === 'transfer') return null
+        const rt = await addRecurringTransaction({
+          userId: settings.userId,
+          type,
+          amount: parsedAmount,
+          currency,
+          categoryId: finalCategoryId || null,
+          subcategoryId: finalSubcategoryId || null,
+          accountId: account.id,
+          note: note.trim() || null,
+          frequency,
+          nextRunDate: advanceByFrequency(date, frequency),
+          autoCreate,
+          isActive: true,
+          remindDaysBefore: 1,
+        })
+        return rt.id
+      }
+
       if (transaction) {
-        await editTransaction(transaction.id, fields)
+        // An entry whose planned payment was deleted can start a new one
+        const recurringTransactionId = planned?.id ?? (await startPlanned())
+        await editTransaction(transaction.id, { ...fields, recurringTransactionId, ...(paying ? { status: 'confirmed' as const } : {}) })
         announce({ amount: parsedAmount, currency, type, what })
       } else {
-        let recurringTransactionId: string | null = null
-
-        if (isRecurring && type !== 'transfer') {
-          const rt = await addRecurringTransaction({
-            userId: settings.userId,
-            type,
-            amount: parsedAmount,
-            currency,
-            categoryId: finalCategoryId,
-            subcategoryId: finalSubcategoryId || null,
-            accountId: account.id,
-            note: note.trim() || null,
-            frequency,
-            nextRunDate: advanceByFrequency(date, frequency),
-            autoCreate,
-            isActive: true,
-            remindDaysBefore: 1,
-          })
-          recurringTransactionId = rt.id
-        }
+        const recurringTransactionId = await startPlanned()
 
         const created = await addTransaction({
           ...fields,
@@ -696,7 +702,11 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const nextDate = advanceByFrequency(date, frequency)
   const typeLabel = (tx: TransactionType) =>
     tx === 'expense' ? t('transaction.expense') : tx === 'income' ? t('transaction.income') : t('transaction.transfer')
-  const saveLabel = isTransfer && !isEditing ? t('transaction.transfer') : t('common.save')
+  const saveLabel = paying ? t('add.markPaid') : isTransfer && !isEditing ? t('transaction.transfer') : t('common.save')
+  // The planned payment this entry belongs to, if any
+  const planned = transaction?.recurringTransactionId
+    ? recurring.find((rt) => rt.id === transaction.recurringTransactionId)
+    : undefined
   const formKind: CategoryKind = type === 'income' ? 'income' : 'expense'
   const typeTemplates = templates.filter((tpl) => tpl.type === type)
   const pickedCategory = categories.find((c) => c.id === selectedCategoryId)
@@ -704,7 +714,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const subParent = subParentId ? categories.find((c) => c.id === subParentId) : undefined
   const categoryTitle = type === 'income' ? t('transaction.incomeSource') : t('transaction.category')
   const viewTitle: Record<View, string> = {
-    form: isEditing ? t('add.editEntry') : t('add.newEntry'),
+    form: paying ? t('add.payTitle') : isEditing ? t('add.editEntry') : t('add.newEntry'),
     category: subParent ? getCategoryName(subParent, t) : categoryTitle,
     account: t('transaction.account'),
     date: t('add.date'),
@@ -905,7 +915,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
               }
               title={t('transaction.account')}
               value={account?.name ?? t('add.required')}
-              required={!account}
+              tone={account ? undefined : 'req'}
               onClick={() => openView('account')}
             />
           )}
@@ -918,9 +928,9 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                   ? categoryLabel(pickedCategory.id, pickedSub?.id)
                   : suggestedCat
                     ? t('add.suggestion', { name: getCategoryName(suggestedCat, t) })
-                    : t('add.required')
+                    : t('add.later')
               }
-              required={!pickedCategory && !suggestedCat}
+              tone={!pickedCategory && !suggestedCat ? 'later' : undefined}
               onClick={() => openView('category')}
             />
           )}
@@ -934,17 +944,33 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
             value={dateLabel}
             onClick={() => openView('date')}
           />
-          {!isTransfer && !isEditing && (
+          {!isTransfer && planned ? (
             <FormRow
               icon={
                 <span className="fico">
                   <Repeat size={18} strokeWidth={1.75} />
                 </span>
               }
-              title={t('add.repeat')}
-              value={repeatLabel}
-              onClick={() => openView('repeat')}
+              title={t('planned.title')}
+              value={t(`planned.every_${planned.frequency}`)}
+              onClick={() => {
+                onClose()
+                navigate('/settings/planned')
+              }}
             />
+          ) : (
+            !isTransfer && (
+              <FormRow
+                icon={
+                  <span className="fico">
+                    <Repeat size={18} strokeWidth={1.75} />
+                  </span>
+                }
+                title={t('add.repeat')}
+                value={repeatLabel}
+                onClick={() => openView('repeat')}
+              />
+            )
           )}
         </div>
       </section>
@@ -1078,6 +1104,22 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       <section className={`fsec${frequent.length > 0 ? '' : ' first'}`}>
         <h3 className="t-over fsec-title">{t('add.allCategories')}</h3>
         <div className="fgroup">
+          <button
+            type="button"
+            className="frow"
+            aria-current={!selectedCategoryId || undefined}
+            onClick={() => {
+              setSuggestedCat(null)
+              pickCategory('')
+            }}
+          >
+            <CategoryIcon />
+            <span className="frow-main">
+              <span className="frow-title">{t('add.decideLater')}</span>
+              <span className="frow-sub">{t('add.decideLaterSub')}</span>
+            </span>
+            {!selectedCategoryId && check}
+          </button>
           {shownCategories.map((category) => categoryRow(category))}
           <button type="button" className="frow add" onClick={() => setCategoryForm({})}>
             <span className="cico add" aria-hidden="true">

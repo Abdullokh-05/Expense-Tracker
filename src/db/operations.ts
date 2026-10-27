@@ -306,7 +306,7 @@ export async function ensureDefaults(
   await db.transactions
     .where('userId')
     .equals(userId)
-    .filter((txn) => !txn.accountId)
+    .filter((txn) => !txn.accountId && txn.status !== 'pending')
     .modify((txn) => {
       txn.accountId = (txn.paymentMethod === 'cash' ? cash : undefined)?.id ?? fallback.id
       txn.toAccountId = null

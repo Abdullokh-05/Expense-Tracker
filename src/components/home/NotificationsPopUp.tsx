@@ -118,8 +118,8 @@ export const NotificationsPopUp: React.FC<NotificationsPopUpProps> = ({
                   <Button variant="secondary" size="sm" onClick={() => resolve(txn, 'skipped')}>
                     {t('notifications.skip')}
                   </Button>
-                  <Button size="sm" onClick={() => resolve(txn, 'confirmed')}>
-                    {t('notifications.addIt')}
+                  <Button size="sm" onClick={() => go(item.id, () => onEditTransaction(txn))}>
+                    {t('notifications.markPaid')}
                   </Button>
                 </div>
               </div>

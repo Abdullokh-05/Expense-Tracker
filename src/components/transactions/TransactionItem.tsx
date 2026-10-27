@@ -104,7 +104,11 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   const isTransfer = transaction.type === 'transfer'
   const isIncome = transaction.type === 'income'
   // "Машина › Бензин" when the entry has a subcategory
-  const categoryName = subcategory ? `${getCategoryName(category, t)} › ${getCategoryName(subcategory, t)}` : getCategoryName(category, t)
+  const categoryName = !category
+    ? t('transaction.noCategory')
+    : subcategory
+      ? `${getCategoryName(category, t)} › ${getCategoryName(subcategory, t)}`
+      : getCategoryName(category, t)
   const accountName = accounts.find((a) => a.id === transaction.accountId)?.name
   const toAccountName = accounts.find((a) => a.id === transaction.toAccountId)?.name
 
@@ -173,7 +177,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
           style={isTransfer ? undefined : ({ '--c': category?.color ?? '#8E8E93' } as React.CSSProperties)}
           aria-hidden="true"
         >
-          {isTransfer ? <ArrowLeftRight size={20} strokeWidth={1.75} /> : subcategory?.icon ?? category?.icon ?? '📦'}
+          {isTransfer ? <ArrowLeftRight size={20} strokeWidth={1.75} /> : subcategory?.icon ?? category?.icon ?? '❔'}
         </span>
         <span className="tx-main">
           <span className="tx-title">

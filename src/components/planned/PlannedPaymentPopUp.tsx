@@ -57,11 +57,12 @@ export const PlannedPaymentPopUp: React.FC<PlannedPaymentPopUpProps> = ({ isOpen
     setKind(payment?.type === 'income' ? 'income' : 'expense')
     setName(payment?.note ?? '')
     setAmount(payment ? String(payment.amount) : '')
-    setAccountId(payment?.accountId ?? accounts.find((a) => a.isDefault)?.id ?? accounts[0]?.id ?? '')
+    // New ones leave the account for the day itself: who knows what's in which account then
+    setAccountId(payment?.accountId ?? '')
     setCategoryKey(payment?.categoryId ? (payment.subcategoryId ? `${payment.categoryId}/${payment.subcategoryId}` : payment.categoryId) : '')
     setFrequency(payment?.frequency ?? 'monthly')
     setDate(payment?.nextRunDate ?? todayDate())
-    setAutoCreate(payment?.autoCreate ?? true)
+    setAutoCreate(payment?.autoCreate ?? false)
     setRemind(payment ? remindLead(payment) : 1)
     setDeleting(false)
   }, [isOpen, payment]) // oxlint-disable-line react-hooks/exhaustive-deps -- reset only when it opens
@@ -82,12 +83,8 @@ export const PlannedPaymentPopUp: React.FC<PlannedPaymentPopUpProps> = ({ isOpen
       toast.error(t('transaction.amountRequired'))
       return
     }
-    if (!account) {
-      toast.error(t('transaction.accountRequired'))
-      return
-    }
-    if (!categoryId) {
-      toast.error(t('transaction.categoryRequired'))
+    if (!categoryId && !name.trim()) {
+      toast.error(t('planned.nameOrCategory'))
       return
     }
     setSaving(true)
@@ -100,13 +97,14 @@ export const PlannedPaymentPopUp: React.FC<PlannedPaymentPopUpProps> = ({ isOpen
       type: kind,
       amount: parsed,
       currency,
-      categoryId,
+      categoryId: categoryId || null,
       subcategoryId: subcategoryId || null,
-      accountId: account.id,
+      accountId: account?.id ?? null,
       note: name.trim() || null,
       frequency,
       nextRunDate,
-      autoCreate,
+      // Recording by itself needs an account to record to
+      autoCreate: account ? autoCreate : false,
       remindDaysBefore: remind,
     }
     try {
@@ -189,9 +187,7 @@ export const PlannedPaymentPopUp: React.FC<PlannedPaymentPopUpProps> = ({ isOpen
               <span className="field-label">{kind === 'income' ? t('transaction.incomeSource') : t('transaction.category')}</span>
               <span className="input">
                 <select value={categoryKey} onChange={(e) => setCategoryKey(e.target.value)}>
-                  <option value="" disabled>
-                    {t('add.required')}
-                  </option>
+                  <option value="">{t('add.decideLater')}</option>
                   {kindCategories.map((c) => {
                     const subs = subcategoriesOf(categories, c.id)
                     const own = (
@@ -219,6 +215,7 @@ export const PlannedPaymentPopUp: React.FC<PlannedPaymentPopUpProps> = ({ isOpen
               <span className="field-label">{t('transaction.account')}</span>
               <span className="input">
                 <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                  <option value="">{t('planned.accountOnDay')}</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -266,9 +263,11 @@ export const PlannedPaymentPopUp: React.FC<PlannedPaymentPopUpProps> = ({ isOpen
                 <span className="prow-title">
                   <span>{t('planned.recordItself')}</span>
                 </span>
-                <span className="prow-sub">{autoCreate ? t('planned.recordItselfOn') : t('planned.recordItselfOff')}</span>
+                <span className="prow-sub">
+                  {!account ? t('planned.recordNeedsAccount') : autoCreate ? t('planned.recordItselfOn') : t('planned.recordItselfOff')}
+                </span>
               </span>
-              <Switch checked={autoCreate} onChange={setAutoCreate} label={t('planned.recordItself')} />
+              <Switch checked={Boolean(account) && autoCreate} onChange={setAutoCreate} label={t('planned.recordItself')} disabled={!account} />
             </div>
           </div>
 

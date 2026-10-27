@@ -50,8 +50,8 @@ export function getCategorySpending(
       const category = categories.find((c) => c.id === categoryId)
       return {
         categoryId,
-        categoryName: getCategoryName(category, t),
-        categoryIcon: category?.icon ?? '📦',
+        categoryName: category ? getCategoryName(category, t) : t('transaction.noCategory'),
+        categoryIcon: category?.icon ?? '❔',
         categoryColor: category?.color ?? UNCATEGORIZED_COLOR,
         amount,
         percentage: total > 0 ? Math.round((amount / total) * 100) : 0,

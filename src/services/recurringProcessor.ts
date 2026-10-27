@@ -51,7 +51,7 @@ async function run(userId: string, baseCurrency: string): Promise<number> {
         id: generateId(),
         userId: rt.userId,
         type: rt.type,
-        status: rt.autoCreate ? 'confirmed' : 'pending',
+        status: rt.autoCreate && rt.accountId ? 'confirmed' : 'pending',
         amount: rt.amount,
         currency: rt.currency,
         amountInBaseCurrency: roundMoney(rt.amount * rate),

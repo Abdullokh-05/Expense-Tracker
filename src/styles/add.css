@@ -63,6 +63,7 @@
   .frow-sub { font-size: 13px; line-height: 1.3; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .frow-val { flex: 0 1 auto; min-width: 0; max-width: 55%; font-size: 16px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
   .frow-val.req { color: var(--danger-text); }
+  .frow-val.later { color: var(--warn); }
   .frow-go { flex: none; color: var(--ink-2); opacity: .6; margin-right: -4px; }
   .frow-check { flex: none; color: var(--accent-text); }
   .frow.add .frow-title { color: var(--accent-text); font-weight: 600; }

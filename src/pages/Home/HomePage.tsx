@@ -22,6 +22,7 @@ import { HistorySection } from '@/components/home/HistorySection'
 import type { HistoryFocus } from '@/components/home/HistorySection'
 import { NotificationsPopUp } from '@/components/home/NotificationsPopUp'
 import { UpcomingPopUp } from '@/components/home/UpcomingPopUp'
+import { AttentionCards } from '@/components/home/AttentionCards'
 import { SearchOverlay } from '@/components/home/SearchOverlay'
 import { ProfilePopUp } from '@/components/home/ProfilePopUp'
 import { AccountSettingsPopUp } from '@/components/accounts/AccountSettingsPopUp'
@@ -135,6 +136,9 @@ export const HomePage: React.FC = () => {
           onOpenProfile={() => setPanel('profile')}
           onOpenAccount={setAccount}
         />
+
+        {/* Payments to mark paid and entries without a category, until they're done */}
+        <AttentionCards onEdit={onEdit} />
 
         {/* Recurring payments still due this month */}
         {monthOffset === 0 && upcoming.length > 0 && (

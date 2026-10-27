@@ -17,6 +17,7 @@ import { PageHeader, GlassIconButton } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { toast } from '@/components/ui/Toast'
 import { PlannedPaymentPopUp } from '@/components/planned/PlannedPaymentPopUp'
+import { useTransactionActions } from '@/components/transactions/useTransactionActions'
 
 // Payments that come due within this many days are listed first
 const SOON_DAYS = 7
@@ -33,6 +34,7 @@ export const PlannedPage: React.FC = () => {
   const { transactions, editTransaction } = useTransactionStore()
   const masked = useUiStore((s) => s.amountsHidden)
   const convert = useConverter()
+  const { onEdit, dialogs } = useTransactionActions()
   // undefined = closed, null = a new one
   const [editing, setEditing] = useState<RecurringTransaction | null | undefined>(undefined)
 
@@ -72,10 +74,10 @@ export const PlannedPage: React.FC = () => {
     return formatShortDate(date, i18n.language)
   }
 
-  const resolve = async (txn: Transaction, status: 'confirmed' | 'skipped') => {
+  const skip = async (txn: Transaction) => {
     try {
-      await editTransaction(txn.id, { status })
-      toast.success(status === 'confirmed' ? t('notifications.added') : t('notifications.skipped'))
+      await editTransaction(txn.id, { status: 'skipped' })
+      toast.success(t('notifications.skipped'))
     } catch {
       toast.error(t('common.error'))
     }
@@ -95,7 +97,7 @@ export const PlannedPage: React.FC = () => {
             {[
               t(`planned.every_${item.frequency}`),
               item.isActive ? formatShortDate(item.nextRunDate, i18n.language) : t('settings.recurringPaused'),
-              accounts.find((a) => a.id === item.accountId)?.name,
+              accounts.find((a) => a.id === item.accountId)?.name ?? t('planned.accountOnDayShort'),
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -151,11 +153,11 @@ export const PlannedPage: React.FC = () => {
                   <span className={`amt${txn.type === 'income' ? ' in' : ''}`}>{signed(txn.type, txn.amount, txn.currency)}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => resolve(txn, 'skipped')}>
+                  <Button variant="secondary" size="sm" onClick={() => skip(txn)}>
                     {t('notifications.skip')}
                   </Button>
-                  <Button size="sm" onClick={() => resolve(txn, 'confirmed')}>
-                    {t('notifications.addIt')}
+                  <Button size="sm" onClick={() => onEdit(txn)}>
+                    {t('notifications.markPaid')}
                   </Button>
                 </div>
               </div>
@@ -186,6 +188,7 @@ export const PlannedPage: React.FC = () => {
       )}
 
       <PlannedPaymentPopUp isOpen={editing !== undefined} onClose={() => setEditing(undefined)} payment={editing ?? undefined} />
+      {dialogs}
     </div>
   )
 }

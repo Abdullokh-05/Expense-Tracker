@@ -102,7 +102,8 @@
     "saveAsTemplate": "Сохранить как шаблон",
     "saveAsTemplateHint": "Потом эту запись можно будет добавить одним нажатием.",
     "templateSaved": "Шаблон сохранён",
-    "templateAccountMissing": "Счёта этого шаблона больше нет"
+    "templateAccountMissing": "Счёта этого шаблона больше нет",
+    "noCategory": "Без категории"
   },
   "history": {
     "title": "История",
@@ -379,7 +380,19 @@
     "paymentsDue_many": "Ещё {{count}} платежей",
     "paymentsDue_other": "Ещё {{count}} платежа",
     "monthEnd": "К концу месяца ≈ {{amount}}",
-    "guestMode": "Гостевой режим"
+    "guestMode": "Гостевой режим",
+    "toPay_one": "{{count}} платёж ждёт оплаты",
+    "toPay_few": "{{count}} платежа ждут оплаты",
+    "toPay_many": "{{count}} платежей ждут оплаты",
+    "toPay_other": "{{count}} платежа ждут оплаты",
+    "toPaySub": "Отметьте оплату и выберите счёт",
+    "noCategory_one": "{{count}} запись без категории",
+    "noCategory_few": "{{count}} записи без категории",
+    "noCategory_many": "{{count}} записей без категории",
+    "noCategory_other": "{{count}} записи без категории",
+    "noCategorySub": "Нажмите, чтобы выбрать категорию",
+    "noCategoryTitle": "Нужна категория",
+    "noCategoryHint": "Нажмите на запись, чтобы выбрать её категорию."
   },
   "accounts": {
     "title": "Счета",
@@ -556,7 +569,8 @@
     "dueIn_one": "{{name}}: платёж через {{count}} день",
     "dueIn_few": "{{name}}: платёж через {{count}} дня",
     "dueIn_many": "{{name}}: платёж через {{count}} дней",
-    "dueIn_other": "{{name}}: платёж через {{count}} дня"
+    "dueIn_other": "{{name}}: платёж через {{count}} дня",
+    "markPaid": "Отметить оплату"
   },
   "search": {
     "placeholder": "Поиск по заметкам, категориям, суммам",
@@ -824,7 +838,12 @@
     "mostFrequent": "Частые",
     "allCategories": "Все категории",
     "holdToEdit": "Удерживайте категорию, чтобы изменить её прямо здесь.",
-    "templatesRemoveHint": "Нажмите на шаблон, чтобы удалить его."
+    "templatesRemoveHint": "Нажмите на шаблон, чтобы удалить его.",
+    "payTitle": "Отметить оплату",
+    "markPaid": "Оплачено",
+    "later": "Позже",
+    "decideLater": "Решу позже",
+    "decideLaterSub": "Сохранится без категории, главная напомнит"
   },
   "planned": {
     "title": "Запланированные платежи",
@@ -870,6 +889,10 @@
     "unit_daily": "День",
     "unit_weekly": "Неделя",
     "unit_monthly": "Месяц",
-    "unit_yearly": "Год"
+    "unit_yearly": "Год",
+    "accountOnDay": "Выбрать в день оплаты",
+    "accountOnDayShort": "счёт в день оплаты",
+    "recordNeedsAccount": "Для этого выберите счёт выше. Без него платёж в нужный день будет ждать на главной, пока вы не отметите оплату.",
+    "nameOrCategory": "Укажите название или категорию"
   }
 }

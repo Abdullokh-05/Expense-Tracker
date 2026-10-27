@@ -102,7 +102,8 @@
     "saveAsTemplate": "Save as template",
     "saveAsTemplateHint": "Record this entry again later with one tap.",
     "templateSaved": "Template saved",
-    "templateAccountMissing": "This template's account no longer exists"
+    "templateAccountMissing": "This template's account no longer exists",
+    "noCategory": "No category"
   },
   "history": {
     "title": "History",
@@ -367,7 +368,15 @@
     "paymentsDue_one": "{{count}} payment still due",
     "paymentsDue_other": "{{count}} payments still due",
     "monthEnd": "Month end ≈ {{amount}}",
-    "guestMode": "Guest mode"
+    "guestMode": "Guest mode",
+    "toPay_one": "{{count}} payment to mark as paid",
+    "toPay_other": "{{count}} payments to mark as paid",
+    "toPaySub": "Pick the account it was paid from",
+    "noCategory_one": "{{count}} entry has no category",
+    "noCategory_other": "{{count}} entries have no category",
+    "noCategorySub": "Tap to give them one",
+    "noCategoryTitle": "Needs a category",
+    "noCategoryHint": "Tap an entry to pick its category."
   },
   "accounts": {
     "title": "Accounts",
@@ -530,7 +539,8 @@
     "dueTomorrow": "{{name}} is due tomorrow",
     "dueToday": "{{name}} is due today",
     "dueIn_one": "{{name}} is due in {{count}} day",
-    "dueIn_other": "{{name}} is due in {{count}} days"
+    "dueIn_other": "{{name}} is due in {{count}} days",
+    "markPaid": "Mark as paid"
   },
   "search": {
     "placeholder": "Search notes, categories, amounts",
@@ -788,7 +798,12 @@
     "mostFrequent": "Most frequent",
     "allCategories": "All categories",
     "holdToEdit": "Hold a category to edit it here.",
-    "templatesRemoveHint": "Tap a template to remove it."
+    "templatesRemoveHint": "Tap a template to remove it.",
+    "payTitle": "Mark as paid",
+    "markPaid": "Paid",
+    "later": "Later",
+    "decideLater": "Decide later",
+    "decideLaterSub": "Saved without a category; Home reminds you"
   },
   "planned": {
     "title": "Planned payments",
@@ -828,6 +843,10 @@
     "unit_daily": "Day",
     "unit_weekly": "Week",
     "unit_monthly": "Month",
-    "unit_yearly": "Year"
+    "unit_yearly": "Year",
+    "accountOnDay": "Choose on the day",
+    "accountOnDayShort": "account on the day",
+    "recordNeedsAccount": "Pick an account above for this. Without one it waits on Home on the day until you mark it paid.",
+    "nameOrCategory": "Give it a name or a category"
   }
 }

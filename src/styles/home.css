@@ -270,3 +270,8 @@
     .search-field, .search-results, .search-hint { animation: none; }
   }
 }
+
+/* something waiting for the user: amber, so it reads as "to do", not as an error */
+@layer components {
+  .fc.attn .fc-ico { background: var(--warn-soft); color: var(--warn); }
+}
