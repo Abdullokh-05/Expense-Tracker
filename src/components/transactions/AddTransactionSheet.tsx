@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Bookmark,
   Calendar,
+  CalendarDays,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -16,7 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import type { Category, CategoryKind, RecurringFrequency, Transaction, TransactionTemplate, TransactionType } from '@/types'
-import { BottomSheet } from '@/components/ui/BottomSheet'
+import { BottomSheet, ConfirmDialog } from '@/components/ui/BottomSheet'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/Switch'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
@@ -33,17 +34,17 @@ import { useTemplateStore } from '@/store/templateStore'
 import { useUiStore } from '@/store/uiStore'
 import { useConverter, useRatesStore } from '@/store/ratesStore'
 import { suggestCategory } from '@/db/operations'
-import { getCategoryKind, getCategoryName, subcategoriesOf } from '@/lib/categories'
-import { getAccountBalances, paymentMethodOf } from '@/lib/accounts'
+import { frequentCategories, getCategoryKind, getCategoryName, subcategoriesOf } from '@/lib/categories'
+import { accountColor, accountLook, accountTypeLabel, getAccountBalances, paymentMethodOf } from '@/lib/accounts'
 import { formatRateLine } from '@/lib/rates'
 import { useWideScreen } from '@/lib/useWideScreen'
 import {
   addDays,
   advanceByFrequency,
-  currencySymbol,
   formatAmount,
   formatDayLabel,
   formatShortDate,
+  MASK,
   MONEY_DECIMALS,
   parseMoneyInput,
   roundMoney,
@@ -65,11 +66,11 @@ interface AddTransactionSheetProps {
 const LAST_ACCOUNT_KEY = 'xarajat-last-account'
 // Longest amount the keypad takes, in digits
 const MAX_DIGITS = 12
-// How long a finger rests on a category chip before it opens for editing
+// How long a finger rests on a category before it opens for editing
 const LONG_PRESS_MS = 500
 
-// What takes the keypad's place while one of the extras is open
-type Panel = 'account' | 'date' | 'repeat' | 'templates' | 'confirm'
+// The sheet's screens: the form, and the lists its rows open (like pages pushed on top)
+type View = 'form' | 'category' | 'account' | 'date' | 'repeat' | 'templates'
 type Field = 'amount' | 'received'
 // The category form opened over the sheet: a new category, a new subcategory or an edit
 type CategoryForm = { category?: Category; parent?: Category }
@@ -92,10 +93,36 @@ function sizeClass(text: string): string {
   return text.length > 13 ? 'xlong' : text.length > 10 ? 'long' : ''
 }
 
-// Add or edit an entry, top to bottom: the type, the amount, one row of categories, small
-// chips for the rest (account, date, note, repeat, template) and the keypad. A normal entry
-// is an amount, a category and Save. Transfers move money between two accounts, converting
-// when their currencies differ.
+// One row of the form: an icon, a name, what's chosen and an arrow
+const FormRow: React.FC<{
+  icon: React.ReactNode
+  title: string
+  value?: React.ReactNode
+  required?: boolean
+  onClick: () => void
+}> = ({ icon, title, value, required, onClick }) => (
+  <button type="button" className="frow" onClick={onClick}>
+    {icon}
+    <span className="frow-title">{title}</span>
+    <span className={`frow-val${required ? ' req' : ''}`}>{value}</span>
+    <ChevronRight size={18} strokeWidth={2} className="frow-go" aria-hidden="true" />
+  </button>
+)
+
+// A category's round icon in its colour
+const CategoryIcon: React.FC<{ category?: Category; color?: string; small?: boolean }> = ({ category, color, small }) =>
+  category ? (
+    <span className={`cico${small ? ' sm' : ''}`} style={{ '--c': color ?? category.color } as React.CSSProperties} aria-hidden="true">
+      {category.icon}
+    </span>
+  ) : (
+    <span className={`cico unset${small ? ' sm' : ''}`} aria-hidden="true">?</span>
+  )
+
+// Add or edit an entry. The form reads top to bottom: the type, the amount, then rows for the
+// account, category, date and repeat, and the note. A row opens its list inside the sheet;
+// picking returns to the form. The keypad shows while the amount is being typed. Transfers
+// move money between two accounts, converting when their currencies differ.
 export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   isOpen,
   onClose,
@@ -134,15 +161,16 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   // Typed only when the two accounts of a transfer are in different currencies
   const [toAmount, setToAmount] = useState('')
   const [focus, setFocus] = useState<Field>('amount')
+  // The keypad is up while an amount is being typed; a row tapped puts it away
+  const [keypadOn, setKeypadOn] = useState(true)
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState('')
-  // The category whose subcategories the strip is showing, if any
-  const [stripParentId, setStripParentId] = useState<string | null>(null)
+  const [view, setView] = useState<View>('form')
+  // In the category list: the category whose subcategories are showing
+  const [subParentId, setSubParentId] = useState<string | null>(null)
   const [date, setDate] = useState(todayDate())
   const [note, setNote] = useState('')
-  // The note field stays out of the way until its chip is tapped
-  const [noteOpen, setNoteOpen] = useState(false)
-  const [panel, setPanel] = useState<Panel | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [categoryForm, setCategoryForm] = useState<CategoryForm | undefined>(undefined)
 
   const [isRecurring, setIsRecurring] = useState(false)
@@ -158,8 +186,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   // Synchronous guard: a double tap fires twice before isLoading has re-rendered
   const isSaving = useRef(false)
   const amountInputRef = useRef<HTMLInputElement>(null)
-  const noteInputRef = useRef<HTMLInputElement>(null)
-  const stripRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   // An archived account or category stays selectable on the transaction that already uses it.
   // Accounts counted in the total come first, as on Home.
@@ -195,13 +222,15 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setToAccountId(transaction?.toAccountId ?? (others.find((a) => a.includeInTotal) ?? others[0])?.id ?? '')
       setToAmount(transaction?.toAmount != null ? String(transaction.toAmount) : '')
       setFocus('amount')
+      // A new entry starts with its amount; an edit shows the whole form
+      setKeypadOn(!transaction)
       setSelectedCategoryId(transaction?.categoryId ?? prefilledCategory ?? '')
       setSelectedSubcategoryId(transaction?.subcategoryId ?? '')
-      setStripParentId(null)
+      setView('form')
+      setSubParentId(null)
       setDate(transaction?.date ?? todayDate())
       setNote(transaction?.note ?? '')
-      setNoteOpen(false)
-      setPanel(null)
+      setConfirmingDelete(false)
       setCategoryForm(undefined)
       setIsRecurring(false)
       setFrequency('monthly')
@@ -223,8 +252,13 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     } else if (selectedSubcategoryId && !categories.some((c) => c.id === selectedSubcategoryId)) {
       setSelectedSubcategoryId('')
     }
-    if (stripParentId && !categories.some((c) => c.id === stripParentId)) setStripParentId(null)
-  }, [categories, selectedCategoryId, selectedSubcategoryId, stripParentId])
+    if (subParentId && !categories.some((c) => c.id === subParentId)) setSubParentId(null)
+  }, [categories, selectedCategoryId, selectedSubcategoryId, subParentId])
+
+  // Each screen starts at its top
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 })
+  }, [view, subParentId])
 
   const account = accounts.find((a) => a.id === accountId)
   const toAccount = accounts.find((a) => a.id === toAccountId)
@@ -232,11 +266,8 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   // Every account's balance as it stands without this entry (an edited transfer would
   // otherwise count twice in "after")
   const balances = useMemo(
-    () =>
-      isTransfer
-        ? getAccountBalances(accounts, transactions.filter((txn) => txn.id !== transaction?.id), settings.baseCurrency, convert)
-        : {},
-    [isTransfer, accounts, transactions, transaction?.id, settings.baseCurrency, convert]
+    () => getAccountBalances(accounts, transactions.filter((txn) => txn.id !== transaction?.id), settings.baseCurrency, convert),
+    [accounts, transactions, transaction?.id, settings.baseCurrency, convert]
   )
   const currency = account?.currency ?? settings.baseCurrency
   const base = settings.baseCurrency
@@ -270,9 +301,8 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
   const handleTypeChange = (next: TransactionType) => {
     setType(next)
-    setPanel(null)
     setFocus('amount')
-    setStripParentId(null)
+    setSubParentId(null)
     // A category belongs to one kind; don't carry an expense category over to an income
     const current = categories.find((c) => c.id === selectedCategoryId)
     if (current && getCategoryKind(current) !== next) {
@@ -329,6 +359,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
     if (!hasValidAmount) {
       toast.error(t('transaction.amountRequired'))
+      setKeypadOn(true)
       return
     }
     if (!account) {
@@ -345,8 +376,8 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         return
       }
     } else if (!finalCategoryId) {
-      toast.error(t('transaction.categoryRequired'))
-      stripRef.current?.scrollTo({ left: 0, behavior: 'smooth' })
+      // The category list opens so one can be picked
+      openView('category')
       return
     }
     if (rate === null) {
@@ -531,16 +562,36 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     }
   }
 
-  // ── Picking a category: one with subcategories opens them in the strip first ──
+  // ── Moving between the form and its lists ──
+  const openView = (next: View) => {
+    setKeypadOn(false)
+    setManagingTemplates(false)
+    // The category list opens on the picked category's subcategories, if it has any
+    if (next === 'category') {
+      const picked = categories.find((c) => c.id === selectedCategoryId)
+      setSubParentId(picked && subcategoriesOf(categories, picked.id).length > 0 ? picked.id : null)
+    }
+    setView(next)
+  }
+  const backToForm = () => {
+    setView('form')
+    setSubParentId(null)
+  }
+  // From a category's subcategories, back goes to all categories first
+  const goBack = () => (view === 'category' && subParentId ? setSubParentId(null) : backToForm())
+
+  // ── Picking a category: one with subcategories opens them first ──
   const pickCategory = (categoryId: string, subcategoryId = '') => {
     setSelectedCategoryId(categoryId)
     setSelectedSubcategoryId(subcategoryId)
-    setStripParentId(null)
+    backToForm()
   }
 
   const tapCategory = (category: Category) => {
-    if (subcategoriesOf(categories, category.id).length > 0) setStripParentId(category.id)
-    else pickCategory(category.id)
+    if (subcategoriesOf(categories, category.id).length > 0) {
+      setSubParentId(category.id)
+      if (view !== 'category') setView('category')
+    } else pickCategory(category.id)
   }
 
   // A long press (or a right click) opens the category for editing instead of picking it
@@ -563,7 +614,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         open()
       }, LONG_PRESS_MS)
     },
-    // Scrolling the strip isn't a press
+    // Scrolling the list isn't a press
     onPointerMove: (e: React.PointerEvent) => {
       const start = pressStart.current
       if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancelPress()
@@ -587,7 +638,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     action()
   }
 
-  // ── The keypad types into the amount, or into "Amount received" when that is focused ──
+  // ── The keypad types into the amount, or into "Gets" when that is focused ──
   const field: Field = crossCurrency && focus === 'received' ? 'received' : 'amount'
   const press = (key: string) => {
     const current = field === 'received' ? toAmount : amount
@@ -609,51 +660,22 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     else setAmount(next)
   }
 
-  // The picked category (or the strip's first chip after switching) is brought into view
-  useEffect(() => {
-    if (!isOpen) return
-    const frame = requestAnimationFrame(() => {
-      const row = stripRef.current
-      if (!row) return
-      const chosen = row.querySelector<HTMLElement>('.cchip.on')
-      if (!chosen) {
-        row.scrollLeft = 0
-        return
-      }
-      const left = chosen.offsetLeft - row.offsetLeft
-      // Only when it's cut off by the faded edge
-      const hidden = left - row.scrollLeft < 0 || left - row.scrollLeft + chosen.offsetWidth > row.clientWidth - 32
-      if (hidden) row.scrollLeft = left - 16
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [isOpen, selectedCategoryId, stripParentId, type])
-
   // In keyboard mode the amount field is focused as the sheet opens
   useEffect(() => {
     if (isOpen && typed && !isEditing) setTimeout(() => amountInputRef.current?.focus(), 50)
   }, [isOpen, typed, isEditing])
 
   const close = () => onClose()
-  const togglePanel = (next: Panel) => setPanel(panel === next ? null : next)
-  const toggleNote = () => {
-    if (noteOpen && !note) {
-      setNoteOpen(false)
-      return
-    }
-    setNoteOpen(true)
-    setPanel(null)
-    setTimeout(() => noteInputRef.current?.focus(), 30)
-  }
-  // Settings › Categories; what was typed here is left behind on purpose
-  const manageCategories = () => {
+  // Settings › Categories (or the category's own page); what was typed here is left behind on purpose
+  const manageCategories = (categoryId?: string) => {
     onClose()
-    navigate('/settings/categories')
+    navigate(categoryId ? `/settings/categories/${categoryId}` : '/settings/categories')
   }
 
   // ── What shows ──
-  const symbol = currencySymbol(currency)
   const amountText = showTyped(amount, i18n.language)
-  const amountColor = !amount ? 'var(--ink-2)' : type === 'income' ? 'var(--in)' : 'var(--ink)'
+  const sign = !amount || isTransfer ? '' : type === 'income' ? '+' : '−'
+  const amountColor = !amount ? 'var(--ink-2)' : type === 'income' ? 'var(--in)' : type === 'expense' ? 'var(--danger-text)' : 'var(--ink)'
   const conversion =
     currency !== base
       ? rate === null
@@ -668,346 +690,568 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const today = todayDate()
   const dateLabel =
     date === today ? t('common.today') : date === addDays(today, -1) ? t('common.yesterday') : formatShortDate(date, i18n.language)
-  const repeatLabel = isRecurring
-    ? `${t(`transaction.${frequency}`)} · ${autoCreate ? t('add.auto') : t('add.ask')}`
-    : t('add.repeat')
+  const repeatLabel = isRecurring ? `${t(`transaction.${frequency}`)} · ${autoCreate ? t('add.auto') : t('add.ask')}` : t('add.off')
   const nextDate = advanceByFrequency(date, frequency)
   const typeLabel = (tx: TransactionType) =>
     tx === 'expense' ? t('transaction.expense') : tx === 'income' ? t('transaction.income') : t('transaction.transfer')
   const saveLabel = isTransfer && !isEditing ? t('transaction.transfer') : t('common.save')
   const formKind: CategoryKind = type === 'income' ? 'income' : 'expense'
-  const noteShown = noteOpen || Boolean(note)
   const typeTemplates = templates.filter((tpl) => tpl.type === type)
+  const pickedCategory = categories.find((c) => c.id === selectedCategoryId)
+  const pickedSub = selectedSubcategoryId ? categories.find((c) => c.id === selectedSubcategoryId) : undefined
+  const subParent = subParentId ? categories.find((c) => c.id === subParentId) : undefined
+  const categoryTitle = type === 'income' ? t('transaction.incomeSource') : t('transaction.category')
+  const viewTitle: Record<View, string> = {
+    form: isEditing ? t('add.editEntry') : t('add.newEntry'),
+    category: subParent ? getCategoryName(subParent, t) : categoryTitle,
+    account: t('transaction.account'),
+    date: t('add.date'),
+    repeat: t('add.repeat'),
+    templates: t('transaction.templates'),
+  }
 
-  // ── Pieces ──
+  // ── The top bar: close or back, the screen's name, and one action ──
+  const headAction =
+    view === 'form' ? (
+      isEditing ? (
+        <button type="button" className="iconbtn filled danger" aria-label={t('transaction.delete')} onClick={() => setConfirmingDelete(true)}>
+          <Trash2 size={18} strokeWidth={1.75} />
+        </button>
+      ) : !isTransfer ? (
+        <button type="button" className="hpill" onClick={() => openView('templates')}>
+          {t('transaction.templates')}
+        </button>
+      ) : (
+        <span className="hpill-space" />
+      )
+    ) : view === 'category' ? (
+      <button type="button" className="iconbtn filled" aria-label={t('common.edit')} title={t('common.edit')} onClick={() => manageCategories(subParent?.id)}>
+        <Pencil size={18} strokeWidth={1.75} />
+      </button>
+    ) : view === 'templates' && typeTemplates.length > 0 ? (
+      <button
+        type="button"
+        className={`iconbtn filled${managingTemplates ? ' on' : ''}`}
+        aria-label={managingTemplates ? t('common.done') : t('common.edit')}
+        aria-pressed={managingTemplates}
+        onClick={() => setManagingTemplates(!managingTemplates)}
+      >
+        {managingTemplates ? <Check size={20} strokeWidth={2.25} /> : <Pencil size={18} strokeWidth={1.75} />}
+      </button>
+    ) : (
+      <span className="hpill-space" />
+    )
+
   const head = (
     <div className="sheet-head">
-      <SegmentedControl<TransactionType>
-        label={t('add.typeGroup')}
-        fill={false}
-        value={type}
-        onChange={handleTypeChange}
-        options={(['expense', 'income', 'transfer'] as TransactionType[]).map((tx) => ({ value: tx, label: typeLabel(tx) }))}
-      />
-      <div className="flex items-center">
-        {isEditing && (
-          <button type="button" className="iconbtn danger" aria-label={t('transaction.delete')} onClick={() => setPanel('confirm')}>
-            <Trash2 size={20} strokeWidth={1.75} />
-          </button>
-        )}
-        <button type="button" className="iconbtn" aria-label={t('common.close')} onClick={close}>
+      {view === 'form' ? (
+        <button type="button" className="iconbtn filled" aria-label={t('common.close')} onClick={close}>
           <X size={20} strokeWidth={1.75} />
         </button>
+      ) : (
+        <button type="button" className="iconbtn filled" aria-label={t('common.back')} onClick={goBack}>
+          <ChevronLeft size={22} strokeWidth={2} />
+        </button>
+      )}
+      <h2 className="sheet-title">{viewTitle[view]}</h2>
+      {headAction}
+    </div>
+  )
+
+  // ── The form ──
+  const amountBlock = (
+    <div
+      className={`amt-block${keypadOn && focus === 'amount' && !typed ? ' active' : ''}`}
+      aria-live="polite"
+      onClick={() => {
+        setFocus('amount')
+        setKeypadOn(true)
+      }}
+    >
+      <span className="cur-pill">{currency}</span>
+      <span className="amt-main">
+        {typed ? (
+          <input
+            ref={amountInputRef}
+            className="amt-input"
+            inputMode="decimal"
+            enterKeyHint="done"
+            placeholder="0"
+            aria-label={t('transaction.amount')}
+            value={amount}
+            style={{ color: amountColor }}
+            onChange={(e) => setAmount(cleanAmountInput(e.target.value))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave()
+            }}
+          />
+        ) : (
+          <>
+            <span className={`money-xl ${sizeClass(amountText)}`} style={{ color: amountColor }}>
+              {sign}
+              {amountText}
+            </span>
+            {keypadOn && focus === 'amount' && <span className="caret" aria-hidden="true" />}
+          </>
+        )}
+      </span>
+    </div>
+  )
+
+  const amountNote =
+    conversion === null ? (
+      <div className="amt-sub err">{t('transaction.rateUnavailable')}</div>
+    ) : crossCurrency ? (
+      <div className="amt-sub">
+        {hasValidAmount && receivedAmount
+          ? t('add.rateUsed', { rate: pairRate(currency, toAccount!.currency, receivedAmount / parsedAmount) })
+          : (() => {
+              const live = convert(1, currency, toAccount!.currency)
+              return live ? t('add.rateDefault', { rate: pairRate(currency, toAccount!.currency, live) }) : t('transaction.receivedAmountRequired')
+            })()}
       </div>
-    </div>
-  )
+    ) : conversion ? (
+      <div className="amt-sub">{conversion}</div>
+    ) : null
 
-  // One row of categories, in the order from Settings; past the last one "+ New" and "Manage"
-  const stripParent = stripParentId ? categories.find((c) => c.id === stripParentId) : undefined
-  const strip = stripParent ? (
-    <div ref={stripRef} className="cstrip" role="group" aria-label={t('catPage.subsOf', { name: getCategoryName(stripParent, t) })}>
-      <button type="button" className="cchip back" onClick={() => setStripParentId(null)}>
-        <ChevronLeft size={18} strokeWidth={2} aria-hidden="true" />
-        {t('add.back')}
-      </button>
+  // In the TO card when the currencies differ: what arrives, typed or at today's rate
+  const receivedSlot = crossCurrency ? (
+    typed ? (
+      <span className="tcard-recv">
+        <span>{t('add.receives')}</span>
+        <input
+          inputMode="decimal"
+          value={toAmount}
+          placeholder={convertedToAmount === null ? '' : String(roundMoney(convertedToAmount))}
+          aria-label={t('add.received')}
+          onChange={(e) => setToAmount(cleanAmountInput(e.target.value))}
+        />
+      </span>
+    ) : (
       <button
         type="button"
-        className={`cchip${selectedCategoryId === stripParent.id && !selectedSubcategoryId ? ' on' : ''}`}
-        aria-pressed={selectedCategoryId === stripParent.id && !selectedSubcategoryId}
-        onClick={() => pickCategory(stripParent.id)}
+        className={`tcard-recv${keypadOn && focus === 'received' ? ' focus' : ''}`}
+        aria-label={`${t('add.received')}: ${receivedAmount === null ? '—' : formatAmount(receivedAmount, toAccount!.currency)}`}
+        aria-pressed={keypadOn && focus === 'received'}
+        onClick={(e) => {
+          e.stopPropagation()
+          setFocus(focus === 'received' && keypadOn ? 'amount' : 'received')
+          setKeypadOn(true)
+        }}
       >
-        <span className="emo" aria-hidden="true">{stripParent.icon}</span>
-        {t('add.justCategory', { name: getCategoryName(stripParent, t) })}
+        <span>{t('add.receives')}</span>
+        <span className="num">
+          {toAmount
+            ? formatAmount(parseAmount(toAmount), toAccount!.currency)
+            : convertedToAmount === null
+              ? '—'
+              : formatAmount(convertedToAmount, toAccount!.currency)}
+        </span>
+        {keypadOn && focus === 'received' ? <span className="caret h-4" aria-hidden="true" /> : <Pencil size={12} strokeWidth={2} aria-hidden="true" />}
       </button>
-      {subcategoriesOf(categories, stripParent.id).map((sub) => {
-        const on = selectedSubcategoryId === sub.id
-        return (
-          <button
-            key={sub.id}
-            type="button"
-            className={`cchip${on ? ' on' : ''}`}
-            aria-pressed={on}
-            {...longPress(() => setCategoryForm({ category: sub, parent: stripParent }))}
-            onClick={afterPress(() => pickCategory(stripParent.id, sub.id))}
-          >
-            <span className="emo" aria-hidden="true">{sub.icon}</span>
-            {getCategoryName(sub, t)}
+    )
+  ) : undefined
+
+  const form = (
+    <>
+      <div className="fpad">
+        <SegmentedControl<TransactionType>
+          label={t('add.typeGroup')}
+          value={type}
+          onChange={handleTypeChange}
+          options={(['expense', 'income', 'transfer'] as TransactionType[]).map((tx) => ({ value: tx, label: typeLabel(tx) }))}
+        />
+      </div>
+      <div className="fpad">
+        {amountBlock}
+        {amountNote}
+      </div>
+
+      {isTransfer && (
+        <TransferCards
+          accounts={accounts}
+          fromId={accountId}
+          toId={toAccountId}
+          onFromChange={pickFrom}
+          onToChange={(id) => {
+            setToAccountId(id)
+            setToAmount('')
+          }}
+          onSwap={() => {
+            setAccountId(toAccountId)
+            setToAccountId(accountId)
+            setToAmount('')
+            setFocus('amount')
+          }}
+          balances={balances}
+          amount={hasValidAmount ? parsedAmount : null}
+          received={hasValidAmount ? receivedAmount : null}
+          masked={masked}
+          receivedSlot={receivedSlot}
+        />
+      )}
+
+      <section className="fsec">
+        <h3 className="t-over fsec-title">{t('add.general')}</h3>
+        <div className="fgroup">
+          {!isTransfer && (
+            <FormRow
+              icon={
+                <span className="fico tone" style={{ '--c': account ? accountColor(account) : undefined } as React.CSSProperties}>
+                  {account ? <AccountIcon account={account} size={17} /> : '?'}
+                </span>
+              }
+              title={t('transaction.account')}
+              value={account?.name ?? t('add.required')}
+              required={!account}
+              onClick={() => openView('account')}
+            />
+          )}
+          {!isTransfer && (
+            <FormRow
+              icon={<CategoryIcon category={pickedSub ?? pickedCategory} color={pickedCategory?.color} />}
+              title={categoryTitle}
+              value={
+                pickedCategory
+                  ? categoryLabel(pickedCategory.id, pickedSub?.id)
+                  : suggestedCat
+                    ? t('add.suggestion', { name: getCategoryName(suggestedCat, t) })
+                    : t('add.required')
+              }
+              required={!pickedCategory && !suggestedCat}
+              onClick={() => openView('category')}
+            />
+          )}
+          <FormRow
+            icon={
+              <span className="fico">
+                <CalendarDays size={18} strokeWidth={1.75} />
+              </span>
+            }
+            title={t('add.date')}
+            value={dateLabel}
+            onClick={() => openView('date')}
+          />
+          {!isTransfer && !isEditing && (
+            <FormRow
+              icon={
+                <span className="fico">
+                  <Repeat size={18} strokeWidth={1.75} />
+                </span>
+              }
+              title={t('add.repeat')}
+              value={repeatLabel}
+              onClick={() => openView('repeat')}
+            />
+          )}
+        </div>
+      </section>
+
+      <section className="fsec">
+        <h3 className="t-over fsec-title">{t('add.moreDetail')}</h3>
+        <div className="fgroup">
+          <label className="frow note">
+            <span className="fico">
+              <StickyNote size={18} strokeWidth={1.75} />
+            </span>
+            <input
+              value={note}
+              placeholder={t('add.addNote')}
+              aria-label={t('transaction.note')}
+              maxLength={120}
+              onFocus={() => setKeypadOn(false)}
+              onChange={(e) => handleNoteChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              }}
+            />
+          </label>
+          {!isTransfer && suggestedCat && suggestedCat.id !== selectedCategoryId && (
+            <button type="button" className="frow sug" onClick={() => tapCategory(suggestedCat)}>
+              <CategoryIcon category={suggestedCat} small />
+              <span className="frow-title">{t('add.useSuggestion', { name: getCategoryName(suggestedCat, t) })}</span>
+            </button>
+          )}
+          {!isTransfer && !isEditing && (
+            <div className="frow">
+              <span className="fico">
+                <Bookmark size={18} strokeWidth={1.75} />
+              </span>
+              <span className="frow-title">{t('add.keepAsTemplate')}</span>
+              <Switch checked={saveAsTemplate} onChange={setSaveAsTemplate} label={t('add.keepAsTemplate')} />
+            </div>
+          )}
+          {!isTransfer && isEditing && (
+            <button type="button" className="frow" onClick={handleSaveTemplateFromEdit}>
+              <span className="fico">
+                <Bookmark size={18} strokeWidth={1.75} />
+              </span>
+              <span className="frow-title text-accent-text font-semibold">{t('add.saveTemplate')}</span>
+            </button>
+          )}
+        </div>
+      </section>
+    </>
+  )
+
+  // ── The lists the rows open ──
+  const check = <Check size={20} strokeWidth={2.25} className="frow-check" aria-hidden="true" />
+
+  // The most used categories of this type lately, as a row of round icons
+  const frequent = useMemo(
+    () => (isOpen && !isTransfer ? frequentCategories(categories, transactions, type as CategoryKind, 4) : []),
+    [isOpen, isTransfer, categories, transactions, type]
+  )
+
+  const categoryRow = (category: Category, parentColor?: string, onTap?: () => void, label?: string) => {
+    const isParent = !category.parentId
+    const subs = isParent ? subcategoriesOf(categories, category.id) : []
+    const on = isParent
+      ? selectedCategoryId === category.id && (!selectedSubcategoryId || subs.length > 0)
+      : selectedSubcategoryId === category.id
+    return (
+      <button
+        key={category.id}
+        type="button"
+        className="frow"
+        aria-current={on || undefined}
+        {...longPress(() => setCategoryForm(isParent ? { category } : { category, parent: categories.find((c) => c.id === category.parentId) }))}
+        onClick={afterPress(onTap ?? (() => tapCategory(category)))}
+      >
+        <CategoryIcon category={category} color={parentColor} />
+        <span className="frow-title">{label ?? getCategoryName(category, t)}</span>
+        {subs.length > 0 && !onTap ? (
+          <>
+            <span className="frow-val">{subs.length}</span>
+            <ChevronRight size={18} strokeWidth={2} className="frow-go" aria-hidden="true" />
+          </>
+        ) : (
+          on && check
+        )}
+      </button>
+    )
+  }
+
+  const categoryView = subParent ? (
+    <>
+      <section className="fsec first">
+        <div className="fgroup">
+          {categoryRow(subParent, undefined, () => pickCategory(subParent.id), t('add.justCategory', { name: getCategoryName(subParent, t) }))}
+        </div>
+      </section>
+      <section className="fsec">
+        <h3 className="t-over fsec-title">{t('catEdit.subsTitle')}</h3>
+        <div className="fgroup">
+          {subcategoriesOf(categories, subParent.id).map((sub) => categoryRow(sub, subParent.color, () => pickCategory(subParent.id, sub.id)))}
+          <button type="button" className="frow add" onClick={() => setCategoryForm({ parent: subParent })}>
+            <span className="cico add" aria-hidden="true">
+              <Plus size={18} strokeWidth={2.25} />
+            </span>
+            <span className="frow-title">{t('add.newSub')}</span>
           </button>
-        )
-      })}
-      <button type="button" className="cchip add" onClick={() => setCategoryForm({ parent: stripParent })}>
-        <Plus size={18} strokeWidth={2} aria-hidden="true" />
-        {t('add.newSub')}
-      </button>
-    </div>
+        </div>
+      </section>
+    </>
   ) : (
-    <div ref={stripRef} className="cstrip" role="group" aria-label={type === 'income' ? t('transaction.incomeSource') : t('transaction.category')}>
-      {shownCategories.map((category) => {
-        const on = category.id === selectedCategoryId
-        const suggested = !on && !selectedCategoryId && suggestedCat?.id === category.id
-        const hasSubs = categories.some((c) => c.parentId === category.id)
-        const sub = on && selectedSubcategoryId ? categories.find((c) => c.id === selectedSubcategoryId) : undefined
-        return (
-          <button
-            key={category.id}
-            type="button"
-            className={`cchip${on ? ' on' : ''}${suggested ? ' sug' : ''}`}
-            aria-pressed={on}
-            aria-haspopup={hasSubs || undefined}
-            {...longPress(() => setCategoryForm({ category }))}
-            onClick={afterPress(() => tapCategory(category))}
-          >
-            <span className="emo" aria-hidden="true">{sub?.icon ?? category.icon}</span>
-            {sub ? `${getCategoryName(category, t)} › ${getCategoryName(sub, t)}` : getCategoryName(category, t)}
-            {hasSubs && <ChevronRight size={14} strokeWidth={2.25} className="cchip-more" aria-hidden="true" />}
+    <>
+      {frequent.length > 0 && (
+        <section className="fsec first">
+          <h3 className="t-over fsec-title">{t('add.mostFrequent')}</h3>
+          <div className="fgroup freq">
+            {frequent.map((category) => (
+              <button
+                key={category.id}
+                type="button"
+                className="freq-item"
+                {...longPress(() => setCategoryForm({ category }))}
+                onClick={afterPress(() => tapCategory(category))}
+              >
+                <CategoryIcon category={category} />
+                <span className="freq-name">{getCategoryName(category, t)}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+      <section className={`fsec${frequent.length > 0 ? '' : ' first'}`}>
+        <h3 className="t-over fsec-title">{t('add.allCategories')}</h3>
+        <div className="fgroup">
+          {shownCategories.map((category) => categoryRow(category))}
+          <button type="button" className="frow add" onClick={() => setCategoryForm({})}>
+            <span className="cico add" aria-hidden="true">
+              <Plus size={18} strokeWidth={2.25} />
+            </span>
+            <span className="frow-title">{t('categories.newTitle')}</span>
           </button>
-        )
-      })}
-      <button type="button" className="cchip add" onClick={() => setCategoryForm({})}>
-        <Plus size={18} strokeWidth={2} aria-hidden="true" />
-        {t('add.newCategory')}
-      </button>
-      <button type="button" className="strip-link" onClick={manageCategories}>
-        {t('add.manage')}
-      </button>
-    </div>
+        </div>
+        <p className="fsec-cap">{t('add.holdToEdit')}</p>
+      </section>
+    </>
   )
 
-  // Small chips for everything else; each opens only when tapped
-  const extras = (
-    <div className="extras" role="group" aria-label={t('add.details')}>
-      {/* A transfer picks its accounts on the cards above */}
-      {!isTransfer && (
-        <button
-          type="button"
-          className={`xchip xchip-acct${panel === 'account' ? ' open' : ''}`}
-          aria-expanded={panel === 'account'}
-          aria-label={`${t('transaction.account')}: ${account?.name ?? '—'}`}
-          onClick={() => togglePanel('account')}
-        >
-          {account && <AccountIcon account={account} size={16} />}
-          <span className="xchip-text">{account?.name ?? '—'}</span>
-        </button>
-      )}
-      <button
-        type="button"
-        className={`xchip${date !== today ? ' on' : ''}${panel === 'date' ? ' open' : ''}`}
-        aria-expanded={panel === 'date'}
-        aria-label={`${t('add.date')}: ${dateLabel}`}
-        title={t('add.date')}
-        onClick={() => togglePanel('date')}
-      >
-        <Calendar size={18} strokeWidth={1.75} aria-hidden="true" />
-        {date !== today && <span className="xchip-text">{dateLabel}</span>}
-      </button>
-      <button
-        type="button"
-        className={`xchip${note ? ' on' : ''}${noteShown && !note ? ' open' : ''}`}
-        aria-expanded={noteShown}
-        aria-label={t('transaction.note')}
-        title={t('transaction.note')}
-        onClick={toggleNote}
-      >
-        <StickyNote size={18} strokeWidth={1.75} aria-hidden="true" />
-      </button>
-      {!isTransfer && !isEditing && (
-        <button
-          type="button"
-          className={`xchip${isRecurring ? ' on' : ''}${panel === 'repeat' ? ' open' : ''}`}
-          aria-expanded={panel === 'repeat'}
-          aria-label={repeatLabel}
-          title={t('add.repeat')}
-          onClick={() => togglePanel('repeat')}
-        >
-          <Repeat size={18} strokeWidth={1.75} aria-hidden="true" />
-        </button>
-      )}
-      {!isTransfer && (
-        <button
-          type="button"
-          className={`xchip${!isEditing && saveAsTemplate ? ' on' : ''}${panel === 'templates' ? ' open' : ''}`}
-          aria-expanded={panel === 'templates'}
-          aria-label={t('transaction.templates')}
-          title={t('transaction.templates')}
-          onClick={() => togglePanel('templates')}
-        >
-          <Bookmark size={18} strokeWidth={1.75} aria-hidden="true" fill={!isEditing && saveAsTemplate ? 'currentColor' : 'none'} />
-        </button>
-      )}
-    </div>
+  const accountView = (
+    <section className="fsec first">
+      <div className="fgroup">
+        {accounts.map((item) => {
+          const on = item.id === accountId
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className="frow tall"
+              aria-current={on || undefined}
+              onClick={() => {
+                setAccountId(item.id)
+                backToForm()
+              }}
+            >
+              <span className="fico tone" style={{ '--c': accountColor(item) } as React.CSSProperties}>
+                <AccountIcon account={item} size={17} />
+              </span>
+              <span className="frow-main">
+                <span className="frow-title">{item.name}</span>
+                <span className="frow-sub">
+                  {accountTypeLabel(accountLook(item), t)} · {masked ? MASK : formatAmount(balances[item.id] ?? 0, item.currency)}
+                </span>
+              </span>
+              {on && check}
+            </button>
+          )
+        })}
+      </div>
+    </section>
   )
 
-  const accountChips = (selectedId: string, onPick: (id: string) => void, disabledId?: string) =>
-    accounts.map((item) => {
-      const on = item.id === selectedId
-      return (
-        <button
-          key={item.id}
-          type="button"
-          className={`acc-chip${on ? ' on' : ''}`}
-          aria-pressed={on}
-          disabled={item.id === disabledId}
-          onClick={() => onPick(item.id)}
-        >
-          <AccountIcon account={item} size={18} />
-          {item.name}
-          {item.currency !== base && <span className="code">{item.currency}</span>}
-        </button>
-      )
-    })
+  const dateView = (
+    <section className="fsec first">
+      <div className="fgroup">
+        {[0, -1, -2, -3].map((back) => {
+          const day = addDays(today, back)
+          return (
+            <button
+              key={day}
+              type="button"
+              className="frow"
+              aria-current={date === day || undefined}
+              onClick={() => {
+                setDate(day)
+                backToForm()
+              }}
+            >
+              <span className="frow-title">{formatDayLabel(day, i18n.language)}</span>
+              {date === day && check}
+            </button>
+          )
+        })}
+        <label className="frow">
+          <span className="fico">
+            <Calendar size={18} strokeWidth={1.75} />
+          </span>
+          <span className="frow-title">{t('add.anotherDay')}</span>
+          <input
+            type="date"
+            className="frow-date"
+            value={date}
+            max={today}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+          />
+        </label>
+      </div>
+    </section>
+  )
 
-  const done = <Button variant="ghost" onClick={() => setPanel(null)}>{t('common.done')}</Button>
+  const repeatView = (
+    <section className="fsec first">
+      <div className="fgroup">
+        <div className="frow">
+          <span className="fico">
+            <Repeat size={18} strokeWidth={1.75} />
+          </span>
+          <span className="frow-title">{t('add.repeat')}</span>
+          <Switch checked={isRecurring} onChange={setIsRecurring} label={t('add.repeat')} />
+        </div>
+        {isRecurring && (
+          <div className="frow col">
+            <span className="t-label">{t('add.howOften')}</span>
+            <SegmentedControl<RecurringFrequency>
+              label={t('add.howOften')}
+              value={frequency}
+              onChange={setFrequency}
+              options={(['weekly', 'monthly', 'yearly'] as RecurringFrequency[]).map((f) => ({ value: f, label: t(`transaction.${f}`) }))}
+            />
+            <span className="t-label">{t('add.whenDue')}</span>
+            <SegmentedControl<'auto' | 'ask'>
+              label={t('add.whenDue')}
+              value={autoCreate ? 'auto' : 'ask'}
+              onChange={(next) => setAutoCreate(next === 'auto')}
+              options={[
+                { value: 'auto', label: t('add.addForMe') },
+                { value: 'ask', label: t('add.askFirst') },
+              ]}
+            />
+          </div>
+        )}
+      </div>
+      {isRecurring && (
+        <p className="fsec-cap">{t(autoCreate ? 'add.nextAuto' : 'add.nextAsk', { date: formatDayLabel(nextDate, i18n.language) })}</p>
+      )}
+    </section>
+  )
 
-  const panels: Record<Panel, React.ReactNode> = {
-    account: (
-      <>
-        <div className="panel-head">
-          <span className="t-head">{t('transaction.account')}</span>
-          {done}
-        </div>
-        <div className="acc-wrap" role="group" aria-label={t('transaction.account')}>
-          {accountChips(accountId, (id) => {
-            setAccountId(id)
-            setPanel(null)
-          })}
-        </div>
-      </>
-    ),
-    date: (
-      <>
-        <div className="panel-head">
-          <span className="t-head">{t('add.date')}</span>
-          {done}
-        </div>
-        <div className="chips">
-          {[0, -1, -2].map((back) => {
-            const day = addDays(today, back)
+  const templatesView =
+    typeTemplates.length > 0 ? (
+      <section className="fsec first">
+        <div className="fgroup">
+          {typeTemplates.map((template) => {
+            const category = categories.find((c) => c.id === template.categoryId)
+            const sub = template.subcategoryId ? categories.find((c) => c.id === template.subcategoryId) : undefined
+            const tplAccount = allAccounts.find((a) => a.id === template.accountId)
+            const name = template.note || categoryLabel(template.categoryId, template.subcategoryId ?? undefined)
             return (
-              <button key={day} type="button" className={`chip${date === day ? ' on' : ''}`} aria-pressed={date === day} onClick={() => setDate(day)}>
-                {formatDayLabel(day, i18n.language)}
+              <button
+                key={template.id}
+                type="button"
+                className="frow tall"
+                aria-label={managingTemplates ? t('add.removeTemplate', { name }) : t('add.useTemplate', { name })}
+                onClick={() => handleTemplateTap(template)}
+              >
+                {managingTemplates ? (
+                  <span className="cico del" aria-hidden="true">
+                    <Trash2 size={16} strokeWidth={2} />
+                  </span>
+                ) : (
+                  <CategoryIcon category={sub ?? category} color={category?.color} />
+                )}
+                <span className="frow-main">
+                  <span className="frow-title">{name}</span>
+                  {tplAccount && <span className="frow-sub">{tplAccount.name}</span>}
+                </span>
+                <span className="frow-val num">{formatAmount(template.amount, tplAccount?.currency ?? base)}</span>
               </button>
             )
           })}
         </div>
-        <label className="field">
-          <span className="t-label">{t('add.anotherDay')}</span>
-          <span className="input">
-            <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
-          </span>
-        </label>
-      </>
-    ),
-    repeat: (
-      <>
-        <div className="panel-head">
-          <span className="flex items-center gap-3">
-            <Switch checked={isRecurring} onChange={setIsRecurring} label={t('add.repeat')} />
-            <span className="t-head">{t('add.repeat')}</span>
-          </span>
-          {done}
-        </div>
-        <div className={`opt${isRecurring ? '' : ' opacity-40'}`}>
-          <span className="t-label">{t('add.howOften')}</span>
-          <SegmentedControl<RecurringFrequency>
-            label={t('add.howOften')}
-            value={frequency}
-            onChange={(next) => {
-              setFrequency(next)
-              setIsRecurring(true)
-            }}
-            options={(['weekly', 'monthly', 'yearly'] as RecurringFrequency[]).map((f) => ({ value: f, label: t(`transaction.${f}`) }))}
-          />
-        </div>
-        <div className={`opt${isRecurring ? '' : ' opacity-40'}`}>
-          <span className="t-label">{t('add.whenDue')}</span>
-          <SegmentedControl<'auto' | 'ask'>
-            label={t('add.whenDue')}
-            value={autoCreate ? 'auto' : 'ask'}
-            onChange={(next) => {
-              setAutoCreate(next === 'auto')
-              setIsRecurring(true)
-            }}
-            options={[
-              { value: 'auto', label: t('add.addForMe') },
-              { value: 'ask', label: t('add.askFirst') },
-            ]}
-          />
-        </div>
-        <span className={`t-cap${isRecurring ? '' : ' opacity-40'}`}>
-          {t(autoCreate ? 'add.nextAuto' : 'add.nextAsk', { date: formatDayLabel(nextDate, i18n.language) })}
+        <p className="fsec-cap">{managingTemplates ? t('add.templatesRemoveHint') : t('add.templatesHint')}</p>
+      </section>
+    ) : (
+      <div className="fempty">
+        <span className="fempty-ico">
+          <Bookmark size={24} strokeWidth={1.75} />
         </span>
-      </>
-    ),
-    templates: (
-      <>
-        <div className="panel-head">
-          <span className="t-head">{t('transaction.templates')}</span>
-          {done}
-        </div>
-        {isEditing ? (
-          <Button variant="tinted" className="self-start" onClick={handleSaveTemplateFromEdit}>
-            <Bookmark size={18} strokeWidth={1.75} aria-hidden="true" />
-            {t('add.saveTemplate')}
-          </Button>
-        ) : (
-          <label className="flex items-center justify-between gap-3 min-h-[44px]">
-            <span className="t-body text-ink">{t('add.keepAsTemplate')}</span>
-            <Switch checked={saveAsTemplate} onChange={setSaveAsTemplate} label={t('add.keepAsTemplate')} />
-          </label>
-        )}
-        {!isEditing &&
-          (typeTemplates.length > 0 ? (
-            <>
-              <span className="t-cap">{t('add.templatesHint')}</span>
-              <div className="acc-wrap" role="group" aria-label={t('transaction.templates')}>
-                {typeTemplates.map((template) => {
-                  const category = categories.find((c) => c.id === template.categoryId)
-                  const sub = template.subcategoryId ? categories.find((c) => c.id === template.subcategoryId) : undefined
-                  const tplAccount = allAccounts.find((a) => a.id === template.accountId)
-                  const name = template.note || categoryLabel(template.categoryId, template.subcategoryId ?? undefined)
-                  return (
-                    <button
-                      key={template.id}
-                      type="button"
-                      className={`tpl${managingTemplates ? ' del' : ''}`}
-                      aria-label={managingTemplates ? t('add.removeTemplate', { name }) : t('add.useTemplate', { name })}
-                      onClick={() => handleTemplateTap(template)}
-                    >
-                      <span className="emo" aria-hidden="true">{sub?.icon ?? category?.icon ?? '📦'}</span>
-                      <span>{name}</span>
-                      <span className="num">{showTyped(String(template.amount), i18n.language)}{tplAccount && tplAccount.currency !== base ? ` ${tplAccount.currency}` : ''}</span>
-                      {managingTemplates && (
-                        <span className="tpl-x" aria-hidden="true">
-                          <X size={12} strokeWidth={2.5} />
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-                <button type="button" className="tpl ghost" aria-pressed={managingTemplates} onClick={() => setManagingTemplates(!managingTemplates)}>
-                  {managingTemplates ? t('common.done') : t('transaction.manageTemplates')}
-                </button>
-              </div>
-            </>
-          ) : (
-            <span className="t-cap">{t('add.noTemplates')}</span>
-          ))}
-      </>
-    ),
-    confirm: (
-      <div className="flex flex-col justify-center gap-6 flex-1">
-        <div className="flex flex-col gap-1 text-center">
-          <span className="t-head">{t(`add.deleteTitle_${type}`)}</span>
-          <span className="t-sub">{t('add.deleteText')}</span>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Button variant="secondary" onClick={() => setPanel(null)}>{t('add.keep')}</Button>
-          <Button variant="danger" onClick={handleDelete}>{t('common.delete')}</Button>
-        </div>
+        <span className="t-sub">{t('add.noTemplates')}</span>
       </div>
-    ),
+    )
+
+  const views: Record<View, React.ReactNode> = {
+    form,
+    category: categoryView,
+    account: accountView,
+    date: dateView,
+    repeat: repeatView,
+    templates: templatesView,
   }
 
+  // ── The bottom: the keypad while typing an amount, otherwise one Save button ──
   const keys = ['1', '2', '3', 'back', '4', '5', '6', '7', '8', '9', '000', '0', '.']
   const keypad = (
     <div className="keys">
@@ -1038,168 +1282,32 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
           {t('common.cancel')}
         </Button>
       )}
-      <Button className="fill" onClick={handleSave} disabled={!hasValidAmount} loading={isLoading}>
+      <Button className="fill" size="lg" onClick={handleSave} disabled={!hasValidAmount} loading={isLoading}>
         {saveLabel}
       </Button>
     </div>
   )
-
-  // An open extra takes the keypad's place, so the sheet keeps its height; with a keyboard
-  // it sits above the Save row
-  const dock = (
-    <div className="dock">
-      {panel && <div className={`panel${typed ? ' typed' : ''}`}>{panels[panel]}</div>}
-      {(!panel || typed) && (typed ? saveRow : keypad)}
-    </div>
-  )
-
-  const amountRow = (value: string, onTyped: (text: string) => void, active: boolean) =>
-    typed ? (
-      <input
-        ref={active ? amountInputRef : undefined}
-        className="amt-input"
-        inputMode="decimal"
-        enterKeyHint="done"
-        placeholder="0"
-        aria-label={t('transaction.amount')}
-        value={value}
-        // As wide as what is typed, so the currency stays next to the number
-        style={{ color: amountColor, width: `${Math.max(1, value.length) + 0.4}ch` }}
-        onChange={(e) => onTyped(cleanAmountInput(e.target.value))}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') handleSave()
-        }}
-      />
-    ) : (
-      <>
-        <span className={`money-xl ${sizeClass(amountText)}`} style={{ color: amountColor }}>{amountText}</span>
-        {focus === 'amount' && <span className="caret" aria-hidden="true" />}
-      </>
-    )
-
-  // In the TO card when the currencies differ: what arrives, typed or at today's rate
-  const receivedSlot = crossCurrency ? (
-    typed ? (
-      <span className="tcard-recv">
-        <span>{t('add.receives')}</span>
-        <input
-          inputMode="decimal"
-          value={toAmount}
-          placeholder={convertedToAmount === null ? '' : String(roundMoney(convertedToAmount))}
-          aria-label={t('add.received')}
-          onChange={(e) => setToAmount(cleanAmountInput(e.target.value))}
-        />
-      </span>
-    ) : (
-      <button
-        type="button"
-        className={`tcard-recv${focus === 'received' ? ' focus' : ''}`}
-        aria-label={`${t('add.received')}: ${receivedAmount === null ? '—' : formatAmount(receivedAmount, toAccount!.currency)}`}
-        aria-pressed={focus === 'received'}
-        onClick={() => setFocus(focus === 'received' ? 'amount' : 'received')}
-      >
-        <span>{t('add.receives')}</span>
-        <span className="num">
-          {toAmount
-            ? formatAmount(parseAmount(toAmount), toAccount!.currency)
-            : convertedToAmount === null
-              ? '—'
-              : formatAmount(convertedToAmount, toAccount!.currency)}
-        </span>
-        {focus === 'received' ? <span className="caret h-4" aria-hidden="true" /> : <Pencil size={12} strokeWidth={2} aria-hidden="true" />}
-      </button>
-    )
-  ) : undefined
+  const dock = view === 'form' ? <div className="dock">{!typed && keypadOn ? keypad : saveRow}</div> : undefined
 
   return (
     <>
       <BottomSheet
         isOpen={isOpen}
         onClose={close}
-        label={isEditing ? t('add.editEntry') : t('add.newEntry')}
+        label={viewTitle[view]}
         className={`add-sheet${typed ? ' typed' : ''}`}
         bodyClassName="add-body"
         header={head}
         footer={dock}
       >
-        <div className="entry">
-          <div className="entry-amt" aria-live="polite" onClick={() => setFocus('amount')}>
-            {symbol.before && <span className="money-xl cur-pre">{symbol.symbol}</span>}
-            {amountRow(amount, setAmount, true)}
-            {!symbol.before && <span className="cur">{symbol.symbol}</span>}
-          </div>
-          {/* Between two currencies the rate line below says it all */}
-          {conversion === null ? (
-            <div className="entry-sub err">{t('transaction.rateUnavailable')}</div>
-          ) : (
-            conversion && !crossCurrency && <div className="entry-sub">{conversion}</div>
-          )}
-          {crossCurrency && (
-            <div className="entry-sub">
-              {hasValidAmount && receivedAmount
-                ? t('add.rateUsed', { rate: pairRate(currency, toAccount!.currency, receivedAmount / parsedAmount) })
-                : (() => {
-                    const live = convert(1, currency, toAccount!.currency)
-                    return live ? t('add.rateDefault', { rate: pairRate(currency, toAccount!.currency, live) }) : t('transaction.receivedAmountRequired')
-                  })()}
-            </div>
-          )}
+        <div
+          ref={bodyRef}
+          className="add-scroll"
+          // Scrolling the form puts the keypad away, as a phone keyboard would
+          onTouchMove={() => keypadOn && view === 'form' && setKeypadOn(false)}
+        >
+          {views[view]}
         </div>
-
-        {isTransfer ? (
-          <TransferCards
-            accounts={accounts}
-            fromId={accountId}
-            toId={toAccountId}
-            onFromChange={pickFrom}
-            onToChange={(id) => {
-              setToAccountId(id)
-              setToAmount('')
-            }}
-            onSwap={() => {
-              setAccountId(toAccountId)
-              setToAccountId(accountId)
-              setToAmount('')
-              setFocus('amount')
-            }}
-            balances={balances}
-            amount={hasValidAmount ? parsedAmount : null}
-            received={hasValidAmount ? receivedAmount : null}
-            masked={masked}
-            receivedSlot={receivedSlot}
-          />
-        ) : (
-          strip
-        )}
-        {extras}
-
-        {noteShown && (
-          <label className="note-row">
-            <Pencil size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
-            <input
-              ref={noteInputRef}
-              value={note}
-              placeholder={t('add.addNote')}
-              aria-label={t('transaction.note')}
-              maxLength={120}
-              onChange={(e) => handleNoteChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSave()
-              }}
-            />
-            {!isTransfer && suggestedCat && suggestedCat.id !== selectedCategoryId && (
-              <button
-                type="button"
-                className="suggest"
-                aria-label={t('add.useSuggestion', { name: getCategoryName(suggestedCat, t) })}
-                onClick={() => tapCategory(suggestedCat)}
-              >
-                <span aria-hidden="true">{suggestedCat.icon}</span>
-                <span>{t('add.suggestion', { name: getCategoryName(suggestedCat, t) })}</span>
-              </button>
-            )}
-          </label>
-        )}
       </BottomSheet>
 
       {/* A new category (or subcategory) is picked as soon as it's saved; the amount and the
@@ -1211,6 +1319,17 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         parent={categoryForm?.parent}
         kind={categoryForm?.parent ? getCategoryKind(categoryForm.parent) : categoryForm?.category ? getCategoryKind(categoryForm.category) : formKind}
         onCreated={(created) => (created.parentId ? pickCategory(created.parentId, created.id) : pickCategory(created.id))}
+      />
+
+      <ConfirmDialog
+        isOpen={isOpen && confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={handleDelete}
+        title={t(`add.deleteTitle_${type}`)}
+        description={t('add.deleteText')}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('add.keep')}
+        danger
       />
     </>
   )

@@ -42,7 +42,8 @@ export function filterHistory(
   return transactions.filter((txn) => {
     if (txn.status !== 'confirmed') return false
     if (type && txn.type !== type) return false
-    if (filter.categoryId && txn.categoryId !== filter.categoryId) return false
+    // A category matches its own entries and its subcategories'; a subcategory only its own
+    if (filter.categoryId && txn.categoryId !== filter.categoryId && txn.subcategoryId !== filter.categoryId) return false
     // A transfer belongs to both of its accounts
     if (filter.accountId && txn.accountId !== filter.accountId && txn.toAccountId !== filter.accountId) return false
     if (filter.period === 'month' && (txn.date < monthRange.from || txn.date > monthRange.to)) return false

@@ -8,36 +8,19 @@
   .sgroup .prow-col .seg { width: 100%; }
   .soon { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: var(--fill); color: var(--ink-2); font-size: 13px; font-weight: 500; white-space: nowrap; }
 
-  /* categories: a row opens the category; the handle on the right moves it */
-  .cat-row { padding: 0 4px 0 12px; gap: 4px; background: var(--surface); position: relative; transition: transform 160ms ease, box-shadow 160ms ease; }
-  .cat-list.sorting .cat-row:not(.lifted) { transition: transform 160ms ease; }
-  .cat-row.lifted { z-index: 2; transition: none; box-shadow: var(--sh-2), 0 0 0 1px var(--line-2); border-radius: 12px; }
-  .cat-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 0; text-align: left; color: var(--ink); }
-  .cat-row .bub { width: 36px; height: 36px; font-size: 18px; border-radius: 10px; }
+  /* a sortable row: the row itself opens, the handle on the right moves it */
+  .frow.sortable { padding: 0 4px 0 0; gap: 0; background: var(--surface); transition: transform 160ms ease, box-shadow 160ms ease; }
+  .fgroup.sorting .frow.sortable:not(.lifted) { transition: transform 160ms ease; }
+  .frow.sortable.lifted { z-index: 2; transition: none; box-shadow: var(--sh-2), 0 0 0 1px var(--line-2); border-radius: 12px; }
+  .frow.sortable.lifted::before { display: none; }
+  .frow-hit { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px 6px 16px; text-align: left; color: var(--ink); }
+  .frow-hit:hover { background: color-mix(in srgb, var(--fill) 45%, transparent); }
   .drag { width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-2); opacity: .7; flex: none; cursor: grab; touch-action: none; border-radius: 999px; }
   .drag:hover { background: var(--fill); opacity: 1; }
-  .cat-row.lifted .drag { cursor: grabbing; opacity: 1; }
-
-  /* a category and its open subcategories move as one block */
-  .cat-block { background: var(--surface); position: relative; transition: transform 160ms ease, box-shadow 160ms ease; }
-  .cat-block.lifted { z-index: 2; transition: none; box-shadow: var(--sh-2), 0 0 0 1px var(--line-2); border-radius: 12px; }
-  .cat-block > .cat-row { background: transparent; box-shadow: none; border-radius: 0; min-height: 52px; }
-  /* how many subcategories, and the arrow that shows them */
-  .cat-expand { display: inline-flex; align-items: center; gap: 4px; min-width: 44px; height: 44px; padding: 0 8px; justify-content: center; border-radius: 999px; color: var(--ink-2); font-size: 15px; font-weight: 500; flex: none; position: relative; }
-  .cat-expand:hover { background: var(--fill); }
-  .cat-expand svg { transition: transform var(--ease); }
-  .cat-expand.open svg { transform: rotate(180deg); }
-  /* subcategories sit under the parent's name */
-  .cat-subs { display: flex; flex-direction: column; }
-  .cat-subs > .cat-row { border-top: 1px solid var(--line); padding-left: 60px; background: var(--surface); border-radius: 0; box-shadow: none; }
-  .cat-subs > .cat-row.lifted { z-index: 3; box-shadow: var(--sh-2), 0 0 0 1px var(--line-2); border-radius: 12px; }
-  .cat-subs.sorting > .cat-row:not(.lifted) { transition: transform 160ms ease; }
-  .cat-row.sub .bub { width: 28px; height: 28px; font-size: 15px; border-radius: 8px; }
-  .cat-row.sub .cat-open { min-height: 48px; }
-  /* subcategories in the edit pop-up */
-  .sub-row { gap: 8px; padding-right: 4px; }
-  .sub-row .bub { width: 32px; height: 32px; font-size: 17px; border-radius: 9px; flex: none; }
-  @media (prefers-reduced-motion: reduce) { .cat-expand svg { transition: none; } }
+  .frow.lifted .drag { cursor: grabbing; opacity: 1; }
+  /* Edit / Done at the top of a page, in the glass of the back button */
+  .hpill.glassy { background: var(--glass); color: var(--accent-text); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-in), var(--glass-drop); min-height: 40px; }
+  .hpill.glassy[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 
   /* emoji picker: one scrolling row that fades at the edges, or every icon wrapped */
   .emo-pick { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 -4px; }

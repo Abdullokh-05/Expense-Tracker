@@ -92,3 +92,24 @@ export function pickCategoryColor(categories: Category[]): string {
   const free = CATEGORY_COLORS.find(({ color }) => !used.has(color.toLowerCase()))
   return (free ?? CATEGORY_COLORS[categories.length % CATEGORY_COLORS.length]).color
 }
+
+// The top-level categories of one kind used most in the last 90 days, most used first; at
+// most `limit`, none that went unused. Entries count under their category even when they
+// have a subcategory.
+export function frequentCategories(
+  categories: Category[],
+  transactions: { categoryId: string | null; date: string; status: string; type: string }[],
+  kind: CategoryKind,
+  limit: number,
+  since = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10)
+): Category[] {
+  const counts = new Map<string, number>()
+  for (const txn of transactions) {
+    if (txn.type !== kind || txn.status !== 'confirmed' || !txn.categoryId || txn.date < since) continue
+    counts.set(txn.categoryId, (counts.get(txn.categoryId) ?? 0) + 1)
+  }
+  return categories
+    .filter((c) => !c.parentId && !c.isArchived && getCategoryKind(c) === kind && counts.has(c.id))
+    .sort((a, b) => counts.get(b.id)! - counts.get(a.id)!)
+    .slice(0, limit)
+}
