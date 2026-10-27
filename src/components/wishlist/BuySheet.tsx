@@ -9,7 +9,7 @@ import { useWishlistStore } from '@/store/wishlistStore'
 import { useConverter } from '@/store/ratesStore'
 import { getCategoryKind, getCategoryName } from '@/lib/categories'
 import { DEFAULT_CATEGORIES } from '@/lib/constants'
-import { formatAmount, roundMoney, todayDate } from '@/lib/utils'
+import { formatAmount, parseMoneyInput, roundMoney, sanitizeMoneyInput, todayDate } from '@/lib/utils'
 import { PopUp } from '@/components/ui/PopUp'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
@@ -49,7 +49,7 @@ export const BuySheet: React.FC<BuySheetProps> = ({ item, onClose }) => {
     const targetAccount = accounts.find((a) => a.id === target)
     if (!item || !targetAccount) return ''
     const converted = convert(item.price, item.currency, targetAccount.currency)
-    return converted === null ? '' : String(roundMoney(converted, targetAccount.currency))
+    return converted === null ? '' : String(roundMoney(converted))
   }
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export const BuySheet: React.FC<BuySheetProps> = ({ item, onClose }) => {
 
   const handleRecord = async () => {
     if (!item) return
-    const parsedPaid = parseFloat(paid.replace(/[^0-9.]/g, ''))
+    const parsedPaid = parseMoneyInput(paid, { allowNegative: false }) ?? NaN
     if (isNaN(parsedPaid) || parsedPaid <= 0) {
       toast.error(t('transaction.amountRequired'))
       return
@@ -107,7 +107,7 @@ export const BuySheet: React.FC<BuySheetProps> = ({ item, onClose }) => {
         status: 'confirmed',
         amount: parsedPaid,
         currency: account.currency,
-        amountInBaseCurrency: roundMoney(parsedPaid * rate, settings.baseCurrency),
+        amountInBaseCurrency: roundMoney(parsedPaid * rate),
         exchangeRate: rate,
         categoryId,
         accountId: account.id,
@@ -170,7 +170,7 @@ export const BuySheet: React.FC<BuySheetProps> = ({ item, onClose }) => {
               label={t('wishlist.paidAmount', { currency: account?.currency ?? '' })}
               placeholder="0"
               value={paid}
-              onChange={(e) => setPaid(e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.'))}
+              onChange={(e) => setPaid(sanitizeMoneyInput(e.target.value))}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">

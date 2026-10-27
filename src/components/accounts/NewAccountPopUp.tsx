@@ -6,7 +6,7 @@ import { useAppStore } from '@/store/appStore'
 import { useAccountStore } from '@/store/accountStore'
 import { useConverter } from '@/store/ratesStore'
 import { ACCOUNT_COLORS, TYPE_COLORS } from '@/lib/accounts'
-import { currencySymbol, parseMoneyInput } from '@/lib/utils'
+import { currencySymbol, parseMoneyInput, sanitizeMoneyInput } from '@/lib/utils'
 import { SUPPORTED_CURRENCIES } from '@/lib/constants'
 import { PopUp } from '@/components/ui/PopUp'
 import { Button } from '@/components/ui/Button'
@@ -144,7 +144,7 @@ export const NewAccountPopUp: React.FC<NewAccountPopUpProps> = ({ isOpen, onClos
         <label className="field">
           <span className="field-label">{t('accounts.startingBalance')}</span>
           <span className="input">
-            <input inputMode="decimal" placeholder="0" value={start} onChange={(e) => setStart(e.target.value)} />
+            <input inputMode="decimal" placeholder="0" value={start} onChange={(e) => setStart(sanitizeMoneyInput(e.target.value, { allowNegative: true }))} />
             <span className="suffix" aria-hidden="true">{currencySymbol(currency).symbol}</span>
           </span>
           <span className="help">{t('accounts.startingBalanceHint')}</span>

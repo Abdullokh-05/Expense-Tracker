@@ -1,4 +1,5 @@
 import { db } from '@/db/schema'
+import { fromStored, type MoneyTable } from '@/db/money'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import type { SyncQueueItem, SyncTable } from '@/types'
 
@@ -82,16 +83,16 @@ export async function migrateGuestData(targetUserId: string): Promise<void> {
   // Everything the guest owns moves to the account: leaving budgets or recurring items
   // behind would make them vanish from the UI after signing in.
   const tables = [
-    { table: db.transactions, syncTable: 'transactions' },
-    { table: db.categories, syncTable: 'categories' },
-    { table: db.budgets, syncTable: 'budgets' },
-    { table: db.recurringTransactions, syncTable: 'recurring_transactions' },
-    { table: db.accounts, syncTable: 'accounts' },
-    { table: db.wishlistItems, syncTable: 'wishlist_items' },
-    { table: db.templates, syncTable: 'templates' },
+    { table: db.transactions, syncTable: 'transactions', money: 'transactions' },
+    { table: db.categories, syncTable: 'categories', money: null },
+    { table: db.budgets, syncTable: 'budgets', money: 'budgets' },
+    { table: db.recurringTransactions, syncTable: 'recurring_transactions', money: 'recurringTransactions' },
+    { table: db.accounts, syncTable: 'accounts', money: 'accounts' },
+    { table: db.wishlistItems, syncTable: 'wishlist_items', money: 'wishlistItems' },
+    { table: db.templates, syncTable: 'templates', money: 'templates' },
   ] as const
 
-  for (const { table, syncTable } of tables) {
+  for (const { table, syncTable, money } of tables) {
     const guestRecords = await table.where('userId').equals('guest').toArray()
     for (const record of guestRecords) {
       await table.update(record.id, { userId: targetUserId, synced: false })
@@ -100,7 +101,8 @@ export async function migrateGuestData(targetUserId: string): Promise<void> {
         table: syncTable as SyncTable,
         operation: 'create',
         recordId: record.id,
-        payload: { ...record, userId: targetUserId },
+        // The queue carries ordinary amounts, the database hundredths
+        payload: { ...(money ? fromStored(money as MoneyTable, record) : record), userId: targetUserId },
         createdAt: new Date().toISOString(),
         retries: 0,
       })

@@ -23,6 +23,7 @@ import {
   MASK,
   moneyParts,
   parseDateString,
+  roundMoney,
   todayDate,
 } from '@/lib/utils'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -134,7 +135,7 @@ export const StatsPage: React.FC = () => {
   const head = folds ? items.slice(0, TOP_CATEGORIES) : items
   const tail = folds ? items.slice(TOP_CATEGORIES) : []
   const biggest = items[0]?.amount ?? 0
-  const otherSum = tail.reduce((sum, item) => sum + item.amount, 0)
+  const otherSum = tail.reduce((sum, item) => roundMoney(sum + item.amount), 0)
 
   // ── Limits (outcome only), the fullest first ──
   const limits = useMemo(
@@ -145,7 +146,7 @@ export const StatsPage: React.FC = () => {
           const category = categories.find((c) => c.id === budget.categoryId)
           const spent = month
             .filter((txn) => txn.type === 'expense' && txn.categoryId === budget.categoryId)
-            .reduce((sum, txn) => sum + txn.amountInBaseCurrency, 0)
+            .reduce((sum, txn) => roundMoney(sum + txn.amountInBaseCurrency), 0)
           return { category, limit: budget.monthlyLimit, spent, percent: Math.round((spent / budget.monthlyLimit) * 100) }
         })
         .filter((item): item is typeof item & { category: Category } => Boolean(item.category && !item.category.isArchived))
@@ -293,7 +294,7 @@ export const StatsPage: React.FC = () => {
       <div className="tiles gap-3">
         <div className="ktile">
           <span className="t-cap">{t('stats.daily')}</span>
-          <span className={`ktile-val${masked ? ' masked' : ''}`}>{money(Math.round(total / Math.max(1, days)))}</span>
+          <span className={`ktile-val${masked ? ' masked' : ''}`}>{money(roundMoney(total / Math.max(1, days)))}</span>
           <span className="t-cap">{t('stats.days', { count: days })}</span>
         </div>
         <div className="ktile">

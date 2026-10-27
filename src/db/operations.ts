@@ -1,4 +1,5 @@
 import { db } from './schema'
+import { allFromStored, fromStored, toStored } from './money'
 import type {
   Transaction,
   Category,
@@ -13,7 +14,7 @@ import type {
   SyncTable,
 } from '@/types'
 import { DEFAULT_CATEGORIES, DEFAULT_INCOME_CATEGORIES, LEGACY_CATEGORY_COLORS } from '@/lib/constants'
-import { generateId, nowISO, todayDate } from '@/lib/utils'
+import { generateId, nowISO, todayDate, roundMoney } from '@/lib/utils'
 
 // =====================
 // Settings
@@ -87,29 +88,29 @@ export async function seedDefaultCategories(userId: string): Promise<void> {
 // Accounts
 // =====================
 export async function getAccounts(userId = 'guest'): Promise<Account[]> {
-  const accounts = await db.accounts.where('userId').equals(userId).toArray()
+  const accounts = allFromStored('accounts', await db.accounts.where('userId').equals(userId).toArray())
   return accounts.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
 }
 
 export async function createAccount(data: Omit<Account, 'id' | 'createdAt' | 'updatedAt' | 'synced'>): Promise<Account> {
   const now = nowISO()
   const account: Account = { ...data, id: generateId(), createdAt: now, updatedAt: now, synced: false }
-  await db.accounts.add(account)
+  await db.accounts.add(toStored('accounts', account))
   await addToSyncQueue('accounts', 'create', account.id, account)
   return account
 }
 
 export async function updateAccount(id: string, patch: Partial<Account>): Promise<void> {
-  await db.accounts.update(id, { ...patch, updatedAt: nowISO(), synced: false })
+  await db.accounts.update(id, toStored('accounts', { ...patch, updatedAt: nowISO(), synced: false }))
   const full = await db.accounts.get(id)
-  if (full) await addToSyncQueue('accounts', 'update', id, full)
+  if (full) await addToSyncQueue('accounts', 'update', id, fromStored('accounts', full))
 }
 
 // =====================
 // Wishlist
 // =====================
 export async function getWishlistItems(userId = 'guest'): Promise<WishlistItem[]> {
-  return db.wishlistItems.where('userId').equals(userId).toArray()
+  return allFromStored('wishlistItems', await db.wishlistItems.where('userId').equals(userId).toArray())
 }
 
 export async function createWishlistItem(
@@ -117,15 +118,15 @@ export async function createWishlistItem(
 ): Promise<WishlistItem> {
   const now = nowISO()
   const item: WishlistItem = { ...data, id: generateId(), createdAt: now, updatedAt: now, synced: false }
-  await db.wishlistItems.add(item)
+  await db.wishlistItems.add(toStored('wishlistItems', item))
   await addToSyncQueue('wishlist_items', 'create', item.id, item)
   return item
 }
 
 export async function updateWishlistItem(id: string, patch: Partial<WishlistItem>): Promise<void> {
-  await db.wishlistItems.update(id, { ...patch, updatedAt: nowISO(), synced: false })
+  await db.wishlistItems.update(id, toStored('wishlistItems', { ...patch, updatedAt: nowISO(), synced: false }))
   const full = await db.wishlistItems.get(id)
-  if (full) await addToSyncQueue('wishlist_items', 'update', id, full)
+  if (full) await addToSyncQueue('wishlist_items', 'update', id, fromStored('wishlistItems', full))
 }
 
 export async function deleteWishlistItem(id: string): Promise<void> {
@@ -137,7 +138,7 @@ export async function deleteWishlistItem(id: string): Promise<void> {
 // Templates
 // =====================
 export async function getTemplates(userId = 'guest'): Promise<TransactionTemplate[]> {
-  const templates = await db.templates.where('userId').equals(userId).toArray()
+  const templates = allFromStored('templates', await db.templates.where('userId').equals(userId).toArray())
   return templates.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
 }
 
@@ -146,7 +147,7 @@ export async function createTemplate(
 ): Promise<TransactionTemplate> {
   const now = nowISO()
   const template: TransactionTemplate = { ...data, id: generateId(), createdAt: now, updatedAt: now, synced: false }
-  await db.templates.add(template)
+  await db.templates.add(toStored('templates', template))
   await addToSyncQueue('templates', 'create', template.id, template)
   return template
 }
@@ -231,7 +232,7 @@ export async function getTransactions(userId = 'guest', filters?: {
   to?: string
   status?: 'confirmed' | 'pending' | 'skipped'
 }): Promise<Transaction[]> {
-  let results = await db.transactions.where('userId').equals(userId).toArray()
+  let results = allFromStored('transactions', await db.transactions.where('userId').equals(userId).toArray())
   // Newest day first; within a day, the most recently added first
   results.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
 
@@ -245,7 +246,8 @@ export async function getTransactions(userId = 'guest', filters?: {
 }
 
 export async function getTransactionById(id: string): Promise<Transaction | undefined> {
-  return db.transactions.get(id)
+  const transaction = await db.transactions.get(id)
+  return transaction && fromStored('transactions', transaction)
 }
 
 export async function createTransaction(
@@ -259,16 +261,16 @@ export async function createTransaction(
     updatedAt: now,
     synced: false,
   }
-  await db.transactions.add(transaction)
+  await db.transactions.add(toStored('transactions', transaction))
   await addToSyncQueue('transactions', 'create', transaction.id, transaction)
   return transaction
 }
 
 export async function updateTransaction(id: string, patch: Partial<Transaction>): Promise<void> {
   const updated = { ...patch, updatedAt: nowISO(), synced: false }
-  await db.transactions.update(id, updated)
+  await db.transactions.update(id, toStored('transactions', updated))
   const full = await db.transactions.get(id)
-  if (full) await addToSyncQueue('transactions', 'update', id, full)
+  if (full) await addToSyncQueue('transactions', 'update', id, fromStored('transactions', full))
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
@@ -277,17 +279,18 @@ export async function deleteTransaction(id: string): Promise<void> {
 }
 
 export async function getPendingTransactions(userId = 'guest'): Promise<Transaction[]> {
-  return db.transactions
+  const pending = await db.transactions
     .where('userId').equals(userId)
     .filter(t => t.status === 'pending')
     .toArray()
+  return allFromStored('transactions', pending)
 }
 
 // =====================
 // Budgets
 // =====================
 export async function getBudgets(userId = 'guest'): Promise<Budget[]> {
-  return db.budgets.where('userId').equals(userId).toArray()
+  return allFromStored('budgets', await db.budgets.where('userId').equals(userId).toArray())
 }
 
 export async function getBudgetByCategoryId(userId: string, categoryId: string): Promise<Budget | undefined> {
@@ -295,20 +298,20 @@ export async function getBudgetByCategoryId(userId: string, categoryId: string):
     .where('userId').equals(userId)
     .filter(b => b.categoryId === categoryId)
     .toArray()
-  return results[0]
+  return results[0] && fromStored('budgets', results[0])
 }
 
 export async function upsertBudget(data: Omit<Budget, 'id' | 'createdAt' | 'updatedAt' | 'synced'>): Promise<Budget> {
   const existing = await getBudgetByCategoryId(data.userId, data.categoryId)
   if (existing) {
-    await db.budgets.update(existing.id, { ...data, updatedAt: nowISO(), synced: false })
-    const updated = (await db.budgets.get(existing.id))!
+    await db.budgets.update(existing.id, toStored('budgets', { ...data, updatedAt: nowISO(), synced: false }))
+    const updated = fromStored('budgets', (await db.budgets.get(existing.id))!)
     await addToSyncQueue('budgets', 'update', existing.id, updated)
     return updated
   }
   const now = nowISO()
   const budget: Budget = { ...data, id: generateId(), createdAt: now, updatedAt: now, synced: false }
-  await db.budgets.add(budget)
+  await db.budgets.add(toStored('budgets', budget))
   await addToSyncQueue('budgets', 'create', budget.id, budget)
   return budget
 }
@@ -322,7 +325,7 @@ export async function deleteBudget(id: string): Promise<void> {
 // Recurring Transactions
 // =====================
 export async function getRecurringTransactions(userId = 'guest'): Promise<RecurringTransaction[]> {
-  return db.recurringTransactions.where('userId').equals(userId).toArray()
+  return allFromStored('recurringTransactions', await db.recurringTransactions.where('userId').equals(userId).toArray())
 }
 
 export async function createRecurringTransaction(
@@ -330,15 +333,15 @@ export async function createRecurringTransaction(
 ): Promise<RecurringTransaction> {
   const now = nowISO()
   const rt: RecurringTransaction = { ...data, id: generateId(), createdAt: now, updatedAt: now, synced: false }
-  await db.recurringTransactions.add(rt)
+  await db.recurringTransactions.add(toStored('recurringTransactions', rt))
   await addToSyncQueue('recurring_transactions', 'create', rt.id, rt)
   return rt
 }
 
 export async function updateRecurringTransaction(id: string, patch: Partial<RecurringTransaction>): Promise<void> {
-  await db.recurringTransactions.update(id, { ...patch, updatedAt: nowISO(), synced: false })
+  await db.recurringTransactions.update(id, toStored('recurringTransactions', { ...patch, updatedAt: nowISO(), synced: false }))
   const full = await db.recurringTransactions.get(id)
-  if (full) await addToSyncQueue('recurring_transactions', 'update', id, full)
+  if (full) await addToSyncQueue('recurring_transactions', 'update', id, fromStored('recurringTransactions', full))
 }
 
 export async function deleteRecurringTransaction(id: string): Promise<void> {
@@ -394,7 +397,7 @@ export async function getSpendingByDateRange(
 export async function getTodayTotal(userId: string, type: Transaction['type'] = 'expense'): Promise<number> {
   const today = todayDate()
   const txns = await getTransactions(userId, { from: today, to: today, type, status: 'confirmed' })
-  return txns.reduce((sum, t) => sum + t.amountInBaseCurrency, 0)
+  return txns.reduce((sum, t) => roundMoney(sum + t.amountInBaseCurrency), 0)
 }
 
 // Auto-suggest category based on note text

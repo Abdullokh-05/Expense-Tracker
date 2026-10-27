@@ -23,12 +23,14 @@ import { useWideScreen } from '@/lib/useWideScreen'
 import {
   addDays,
   advanceByFrequency,
-  currencyDecimals,
   currencySymbol,
   formatAmount,
   formatDayLabel,
   formatShortDate,
+  MONEY_DECIMALS,
+  parseMoneyInput,
   roundMoney,
+  sanitizeMoneyInput,
   todayDate,
 } from '@/lib/utils'
 
@@ -52,9 +54,11 @@ const MAX_DIGITS = 12
 type Panel = 'date' | 'repeat' | 'cats' | 'confirm'
 type Field = 'amount' | 'received'
 
-const parseAmount = (text: string) => parseFloat(text.replace(/[^0-9.]/g, ''))
-// Typed amounts keep a dot for decimals whatever the language shows
-const cleanAmountInput = (text: string) => text.replace(/[\s ]/g, '').replace(',', '.').replace(/[^0-9.]/g, '')
+// NaN while nothing is typed
+const parseAmount = (text: string) => parseMoneyInput(text, { allowNegative: false }) ?? NaN
+// Typed amounts keep a dot for decimals whatever the language shows; a comma works too, only
+// one of them is taken, and no more than two digits after it
+const cleanAmountInput = (text: string) => sanitizeMoneyInput(text)
 
 // "45 000" or "2,99" as the amount is being typed, keeping a trailing decimal mark
 function showTyped(raw: string, locale: string): string {
@@ -208,7 +212,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       ? typedToAmount
       : convertedToAmount === null
         ? null
-        : roundMoney(convertedToAmount, toAccount!.currency)
+        : roundMoney(convertedToAmount)
 
   const handleTypeChange = (next: TransactionType) => {
     setType(next)
@@ -288,7 +292,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         type,
         amount: parsedAmount,
         currency,
-        amountInBaseCurrency: roundMoney(parsedAmount * rate, base),
+        amountInBaseCurrency: roundMoney(parsedAmount * rate),
         exchangeRate: rate,
         categoryId: isTransfer ? null : finalCategoryId,
         accountId: account.id,
@@ -402,7 +406,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         status: 'confirmed',
         amount: template.amount,
         currency: templateAccount.currency,
-        amountInBaseCurrency: roundMoney(template.amount * templateRate, base),
+        amountInBaseCurrency: roundMoney(template.amount * templateRate),
         exchangeRate: templateRate,
         categoryId: template.categoryId,
         accountId: templateAccount.id,
@@ -465,20 +469,19 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
   // ── The keypad types into the amount, or into "Amount received" when that is focused ──
   const field: Field = crossCurrency && focus === 'received' ? 'received' : 'amount'
-  const fieldCurrency = field === 'received' ? toAccount!.currency : currency
-  const decimals = currencyDecimals(fieldCurrency)
   const press = (key: string) => {
     const current = field === 'received' ? toAmount : amount
     let next = current
     if (key === 'back') next = current.slice(0, -1)
     else if (key === '.') {
-      if (decimals === 0 || current.includes('.')) return
+      if (current.includes('.')) return
       next = (current || '0') + '.'
     } else if (key === '000') {
       if (!current || current.includes('.')) return
       next = current + '000'
     } else {
-      if (current.includes('.') && current.split('.')[1].length >= decimals) return
+      // Two digits at most after the decimal mark
+      if (current.includes('.') && current.split('.')[1].length >= MONEY_DECIMALS) return
       next = current === '0' ? key : current + key
     }
     if (next.replace('.', '').length > MAX_DIGITS) return
@@ -755,13 +758,11 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         <div className="keys">
           {keys.map((key) => {
             const isBack = key === 'back'
-            const dotOff = key === '.' && decimals === 0
             return (
               <button
                 key={key}
                 type="button"
                 className={`key${isBack || key === '000' || key === '.' ? ' fn' : ''}`}
-                disabled={dotOff}
                 aria-label={isBack ? t('add.deleteKey') : key === '.' ? t('add.decimal') : key}
                 onClick={() => press(key)}
               >
@@ -926,7 +927,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                   <input
                     inputMode="decimal"
                     value={toAmount}
-                    placeholder={convertedToAmount === null ? '' : String(roundMoney(convertedToAmount, toAccount!.currency))}
+                    placeholder={convertedToAmount === null ? '' : String(roundMoney(convertedToAmount))}
                     aria-label={t('add.received')}
                     onChange={(e) => setToAmount(cleanAmountInput(e.target.value))}
                   />

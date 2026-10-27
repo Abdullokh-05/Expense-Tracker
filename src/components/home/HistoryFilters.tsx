@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Calendar, RotateCcw } from 'lucide-react'
 import type { Account, Category, TransactionType } from '@/types'
 import { getCategoryKind, getCategoryName, sortCategories } from '@/lib/categories'
-import { currencySymbol } from '@/lib/utils'
+import { currencySymbol, sanitizeMoneyInput } from '@/lib/utils'
 import { PopUp } from '@/components/ui/PopUp'
 import { Button } from '@/components/ui/Button'
 import type { HistoryFilter, HistoryPeriod, HistorySort } from './historyFilter'
@@ -178,13 +178,13 @@ export const HistoryFilters: React.FC<HistoryFiltersProps> = ({
             <label className="field">
               <span className="t-label">{t('filters.minLabel')}</span>
               <span className="input">
-                <input inputMode="decimal" placeholder="0" value={filter.min} onChange={(e) => onChange({ min: e.target.value })} />
+                <input inputMode="decimal" placeholder="0" value={filter.min} onChange={(e) => onChange({ min: sanitizeMoneyInput(e.target.value) })} />
               </span>
             </label>
             <label className="field">
               <span className="t-label">{t('filters.maxLabel')}</span>
               <span className="input">
-                <input inputMode="decimal" placeholder={t('filters.noLimit')} value={filter.max} onChange={(e) => onChange({ max: e.target.value })} />
+                <input inputMode="decimal" placeholder={t('filters.noLimit')} value={filter.max} onChange={(e) => onChange({ max: sanitizeMoneyInput(e.target.value) })} />
               </span>
             </label>
           </div>

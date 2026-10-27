@@ -1,5 +1,5 @@
 import type { Budget, RecurringTransaction, Transaction } from '@/types'
-import { addDays, getDateRange, todayDate } from '@/lib/utils'
+import { addDays, getDateRange, todayDate, roundMoney } from '@/lib/utils'
 
 // In-app notifications, worked out from the data each time (nothing extra is stored but
 // which ones were read). Ids name the event, so the same limit crossed next month is new again.
@@ -59,7 +59,7 @@ export function buildNotifications(
           txn.date >= month.from &&
           txn.date <= month.to
       )
-      .reduce((sum, txn) => sum + txn.amountInBaseCurrency, 0)
+      .reduce((sum, txn) => roundMoney(sum + txn.amountInBaseCurrency), 0)
     const share = spent / budget.monthlyLimit
     if (share < NEAR_LIMIT) continue
     const over = share > 1

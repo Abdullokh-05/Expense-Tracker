@@ -1,6 +1,6 @@
 import type { Account, AccountType, PaymentMethod, Transaction } from '@/types'
 import type { TFunction } from 'i18next'
-import { roundMoney } from '@/lib/utils'
+import { sumMoney } from '@/lib/utils'
 
 // Converts an amount between currencies at today's rates; null when no rate is known
 export type Converter = (amount: number, from: string, to: string) => number | null
@@ -42,11 +42,11 @@ export function getAccountBalances(
 ): Record<string, number> {
   const balances: Record<string, number> = {}
   for (const account of accounts) {
-    const movement = transactions.reduce(
-      (sum, txn) => sum + accountDelta(txn, account, baseCurrency, convert),
-      0
-    )
-    balances[account.id] = roundMoney(account.startingBalance + movement, account.currency)
+    // Added up in hundredths, so 0,10 + 0,20 is exactly 0,30
+    balances[account.id] = sumMoney([
+      account.startingBalance,
+      ...transactions.map((txn) => accountDelta(txn, account, baseCurrency, convert)),
+    ])
   }
   return balances
 }
@@ -59,14 +59,14 @@ export function sumBalances(
   baseCurrency: string,
   convert: Converter
 ): { total: number; complete: boolean } {
-  let total = 0
+  const inBase: number[] = []
   let complete = true
   for (const account of accounts) {
-    const inBase = convert(balances[account.id] ?? 0, account.currency, baseCurrency)
-    if (inBase === null) complete = false
-    else total += inBase
+    const amount = convert(balances[account.id] ?? 0, account.currency, baseCurrency)
+    if (amount === null) complete = false
+    else inBase.push(amount)
   }
-  return { total: roundMoney(total, baseCurrency), complete }
+  return { total: sumMoney(inBase), complete }
 }
 
 // Accounts shown in pickers and lists

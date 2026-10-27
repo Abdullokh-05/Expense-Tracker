@@ -1,4 +1,5 @@
 import { db } from '@/db/schema'
+import { allFromStored, toStored, type MoneyTable } from '@/db/money'
 import type {
   Account,
   Budget,
@@ -80,13 +81,13 @@ export async function exportBackup(userId: string, baseCurrency: string): Promis
     version: 2,
     exportedAt: new Date().toISOString(),
     baseCurrency,
-    transactions: await db.transactions.where('userId').equals(userId).toArray(),
+    transactions: allFromStored('transactions', await db.transactions.where('userId').equals(userId).toArray()),
     categories: await db.categories.where('userId').equals(userId).toArray(),
-    budgets: await db.budgets.where('userId').equals(userId).toArray(),
-    recurringTransactions: await db.recurringTransactions.where('userId').equals(userId).toArray(),
-    accounts: await db.accounts.where('userId').equals(userId).toArray(),
-    wishlistItems: await db.wishlistItems.where('userId').equals(userId).toArray(),
-    templates: await db.templates.where('userId').equals(userId).toArray(),
+    budgets: allFromStored('budgets', await db.budgets.where('userId').equals(userId).toArray()),
+    recurringTransactions: allFromStored('recurringTransactions', await db.recurringTransactions.where('userId').equals(userId).toArray()),
+    accounts: allFromStored('accounts', await db.accounts.where('userId').equals(userId).toArray()),
+    wishlistItems: allFromStored('wishlistItems', await db.wishlistItems.where('userId').equals(userId).toArray()),
+    templates: allFromStored('templates', await db.templates.where('userId').equals(userId).toArray()),
   }
   downloadFile(`xarajat_backup_${todayDate()}.json`, JSON.stringify(backup, null, 2), 'application/json')
 }
@@ -128,8 +129,12 @@ export async function restoreBackup(
   userId: string
 ): Promise<{ baseCurrency: string; transactionCount: number }> {
   const backup = parseBackup(await file.text())
-  const own = <T extends { userId: string }>(records: T[]): T[] =>
-    records.map((record) => ({ ...record, userId, synced: false }))
+  // Backup files hold ordinary amounts; the database keeps hundredths
+  const own = <T extends { userId: string }>(records: T[], table?: MoneyTable): T[] =>
+    records.map((record) => {
+      const mine = { ...record, userId, synced: false }
+      return table ? toStored(table, mine) : mine
+    })
 
   await db.transaction(
     'rw',
@@ -143,13 +148,13 @@ export async function restoreBackup(
       await db.wishlistItems.where('userId').equals(userId).delete()
       await db.templates.where('userId').equals(userId).delete()
 
-      await db.transactions.bulkPut(own(backup.transactions))
+      await db.transactions.bulkPut(own(backup.transactions, 'transactions'))
       await db.categories.bulkPut(own(backup.categories))
-      await db.budgets.bulkPut(own(backup.budgets))
-      await db.recurringTransactions.bulkPut(own(backup.recurringTransactions))
-      await db.accounts.bulkPut(own(backup.accounts))
-      await db.wishlistItems.bulkPut(own(backup.wishlistItems))
-      await db.templates.bulkPut(own(backup.templates))
+      await db.budgets.bulkPut(own(backup.budgets, 'budgets'))
+      await db.recurringTransactions.bulkPut(own(backup.recurringTransactions, 'recurringTransactions'))
+      await db.accounts.bulkPut(own(backup.accounts, 'accounts'))
+      await db.wishlistItems.bulkPut(own(backup.wishlistItems, 'wishlistItems'))
+      await db.templates.bulkPut(own(backup.templates, 'templates'))
     }
   )
 

@@ -1,7 +1,7 @@
 import type { TFunction } from 'i18next'
 import type { Category, CategorySpending, DateRange, Transaction, TransactionType } from '@/types'
 import { getCategoryName } from '@/lib/categories'
-import { addDays, formatMonthName, formatWeekdayShort, parseDateString } from '@/lib/utils'
+import { addDays, formatMonthName, formatWeekdayShort, parseDateString, roundMoney } from '@/lib/utils'
 
 const UNCATEGORIZED_ID = 'uncategorized'
 const UNCATEGORIZED_COLOR = '#6b7280'
@@ -18,7 +18,7 @@ export function confirmedInRange(transactions: Transaction[], range: DateRange):
 export function sumByType(transactions: Transaction[], type: TransactionType): number {
   return transactions
     .filter((txn) => txn.type === type)
-    .reduce((sum, txn) => sum + txn.amountInBaseCurrency, 0)
+    .reduce((sum, txn) => roundMoney(sum + txn.amountInBaseCurrency), 0)
 }
 
 // Expenses (or income) grouped by category, biggest first. Transactions without a (known)
@@ -37,10 +37,10 @@ export function getCategorySpending(
     const known = txn.categoryId && categories.some((c) => c.id === txn.categoryId)
     const key = known ? txn.categoryId! : UNCATEGORIZED_ID
     const entry = totals.get(key) ?? { amount: 0, count: 0 }
-    entry.amount += txn.amountInBaseCurrency
+    entry.amount = roundMoney(entry.amount + txn.amountInBaseCurrency)
     entry.count += 1
     totals.set(key, entry)
-    total += txn.amountInBaseCurrency
+    total = roundMoney(total + txn.amountInBaseCurrency)
   }
 
   return [...totals.entries()]
@@ -85,7 +85,7 @@ export function getSpendingTrend(
         label: formatMonthName(new Date(Number(year), month, 1), locale, 'short'),
         amount: expenses
           .filter((txn) => txn.date.startsWith(key))
-          .reduce((sum, txn) => sum + txn.amountInBaseCurrency, 0),
+          .reduce((sum, txn) => roundMoney(sum + txn.amountInBaseCurrency), 0),
       }
     })
   }
@@ -98,7 +98,7 @@ export function getSpendingTrend(
       label: period === 'week' ? formatWeekdayShort(date, locale) : String(date.getDate()),
       amount: expenses
         .filter((txn) => txn.date === day)
-        .reduce((sum, txn) => sum + txn.amountInBaseCurrency, 0),
+        .reduce((sum, txn) => roundMoney(sum + txn.amountInBaseCurrency), 0),
     })
   }
   return points

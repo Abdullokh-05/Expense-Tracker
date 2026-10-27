@@ -6,7 +6,7 @@ import { useAccountStore } from '@/store/accountStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { useWishlistStore } from '@/store/wishlistStore'
 import { useConverter } from '@/store/ratesStore'
-import { formatAmount, formatDate, MASK } from '@/lib/utils'
+import { formatAmount, formatDate, MASK, roundMoney } from '@/lib/utils'
 import { activeAccounts, getAccountBalances } from '@/lib/accounts'
 import { allocateSavings, importanceKey } from '@/lib/wishlist'
 import { WishSheet } from '@/components/wishlist/WishSheet'
@@ -58,7 +58,7 @@ export const WishlistPage: React.FC = () => {
     () => allocateSavings(wanted, savingsInBase ?? 0, base, convert),
     [wanted, savingsInBase, base, convert]
   )
-  const wantedTotal = progress.reduce((sum, p) => sum + (p.priceInBase ?? 0), 0)
+  const wantedTotal = progress.reduce((sum, p) => roundMoney(sum + (p.priceInBase ?? 0)), 0)
   const missing = Math.max(0, wantedTotal - Math.max(0, savingsInBase ?? 0))
 
   const handleReturn = async (item: WishlistItem) => {

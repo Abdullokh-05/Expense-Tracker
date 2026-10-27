@@ -1,4 +1,5 @@
 import { db } from '@/db/schema'
+import { allFromStored, toStored } from '@/db/money'
 import { addToSyncQueue } from '@/db/operations'
 import type { ExchangeRate } from '@/types'
 import { nowISO, roundMoney } from '@/lib/utils'
@@ -67,8 +68,8 @@ export async function getConversionRate(fromCurrency: string, toCurrency: string
 export async function convertBaseCurrency(userId: string, oldBase: string, newBase: string): Promise<void> {
   if (oldBase === newBase) return
 
-  const transactions = await db.transactions.where('userId').equals(userId).toArray()
-  const budgets = await db.budgets.where('userId').equals(userId).toArray()
+  const transactions = allFromStored('transactions', await db.transactions.where('userId').equals(userId).toArray())
+  const budgets = allFromStored('budgets', await db.budgets.where('userId').equals(userId).toArray())
   if (transactions.length === 0 && budgets.length === 0) return
 
   const oldToNew = await getConversionRate(oldBase, newBase)
@@ -80,7 +81,7 @@ export async function convertBaseCurrency(userId: string, oldBase: string, newBa
     // Something paid in the new base currency gets its exact amount back; everything else
     // keeps the value it was recorded at, carried over at today's rate.
     const amountInBaseCurrency =
-      txn.currency === newBase ? txn.amount : roundMoney(txn.amountInBaseCurrency * oldToNew, newBase)
+      txn.currency === newBase ? txn.amount : roundMoney(txn.amountInBaseCurrency * oldToNew)
     return {
       ...txn,
       amountInBaseCurrency,
@@ -92,14 +93,14 @@ export async function convertBaseCurrency(userId: string, oldBase: string, newBa
 
   const convertedBudgets = budgets.map((budget) => ({
     ...budget,
-    monthlyLimit: roundMoney(budget.monthlyLimit * oldToNew, newBase),
+    monthlyLimit: roundMoney(budget.monthlyLimit * oldToNew),
     updatedAt: now,
     synced: false,
   }))
 
   await db.transaction('rw', db.transactions, db.budgets, db.syncQueue, async () => {
-    await db.transactions.bulkPut(convertedTransactions)
-    await db.budgets.bulkPut(convertedBudgets)
+    await db.transactions.bulkPut(convertedTransactions.map((txn) => toStored('transactions', txn)))
+    await db.budgets.bulkPut(convertedBudgets.map((budget) => toStored('budgets', budget)))
     for (const txn of convertedTransactions) await addToSyncQueue('transactions', 'update', txn.id, txn)
     for (const budget of convertedBudgets) await addToSyncQueue('budgets', 'update', budget.id, budget)
   })

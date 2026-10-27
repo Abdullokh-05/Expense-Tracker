@@ -13,6 +13,7 @@ import type {
   ExchangeRate,
   AppSettings,
 } from '@/types'
+import { MINOR_UNITS_BACKUP_ID, MONEY_TABLES, toStored } from './money'
 
 export class XarajatDB extends Dexie {
   transactions!: Table<Transaction>
@@ -27,6 +28,7 @@ export class XarajatDB extends Dexie {
   syncQueue!: Table<SyncQueueItem>
   exchangeRates!: Table<ExchangeRate>
   settings!: Table<AppSettings>
+  migrationBackups!: Table<MigrationBackup>
 
   constructor() {
     super('xarajat-db')
@@ -69,7 +71,43 @@ export class XarajatDB extends Dexie {
       templates:
         'id, userId, createdAt, updatedAt, synced',
     })
+
+    // Amounts move to whole hundredths (23,67 → 2367) so they can have decimals without
+    // floating-point noise. Dexie runs an upgrade once, when the database is first opened at
+    // this version; the backup it leaves is also checked, so the amounts can never be
+    // multiplied twice. The whole upgrade is one transaction: if any step fails nothing changes.
+    this.version(4)
+      .stores({
+        migrationBackups: 'id, createdAt',
+      })
+      .upgrade(async (tx) => {
+        const backups = tx.table<MigrationBackup>('migrationBackups')
+        if (await backups.get(MINOR_UNITS_BACKUP_ID)) return
+
+        const tables: Record<string, unknown[]> = {}
+        for (const table of MONEY_TABLES) tables[table] = await tx.table(table).toArray()
+        await backups.add({
+          id: MINOR_UNITS_BACKUP_ID,
+          createdAt: new Date().toISOString(),
+          note: 'Amounts as they were before being stored in hundredths',
+          tables,
+        })
+
+        for (const table of MONEY_TABLES) {
+          await tx.table(table).toCollection().modify((record: Record<string, unknown>) => {
+            Object.assign(record, toStored(table, record))
+          })
+        }
+      })
   }
+}
+
+// A copy of tables taken before a data upgrade changed them
+export interface MigrationBackup {
+  id: string
+  createdAt: string
+  note: string
+  tables: Record<string, unknown[]>
 }
 
 export const db = new XarajatDB()

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import i18n from '@/lib/i18n'
 import type { RecurringFrequency } from '@/types'
+import { MONEY_DECIMALS, toMinorUnits } from '@/lib/money'
 
 export function generateId(): string {
   return uuidv4()
@@ -125,21 +126,13 @@ function formatFullDate(date: Date, locale: string): string {
 // =====================
 // Money
 // =====================
-const NO_DECIMAL_CURRENCIES = ['UZS', 'JPY', 'KRW', 'VND', 'IDR', 'CLP', 'HUF', 'ISK', 'PYG', 'RWF']
+// Rounding, sums and typed amounts live in lib/money
+export { MONEY_DECIMALS, parseMoneyInput, roundMoney, sanitizeMoneyInput, sumMoney, toMinorUnits } from '@/lib/money'
 
-export function currencyDecimals(currency: string): number {
-  return NO_DECIMAL_CURRENCIES.includes(currency.toUpperCase()) ? 0 : 2
-}
-
-// Round to the smallest unit the currency is displayed in
-export function roundMoney(amount: number, currency: string): number {
-  const factor = 10 ** currencyDecimals(currency)
-  return Math.round(amount * factor) / factor
-}
-
-// Parses what was typed into a money field: spaces, a comma for decimals and a minus are fine
-export function parseMoneyInput(text: string): number | null {
-  // \s covers the non-breaking spaces amounts are shown with
+// A number typed into a field that isn't money (an exchange rate keeps all its decimals):
+// spaces, a comma for decimals and a minus are fine
+export function parseNumberInput(text: string): number | null {
+  // \s covers the non-breaking spaces numbers are shown with
   const cleaned = text.replace(/\s/g, '').replace('−', '-').replace(',', '.')
   if (cleaned === '' || cleaned === '-') return null
   const value = Number(cleaned)
@@ -173,13 +166,15 @@ export function currencySymbol(currency: string, locale = i18n.language): { symb
 }
 
 // The number alone: thousands split by non-breaking spaces, the decimal mark of the language
-// (452.30 in English, 452,30 in Russian and Uzbek). Always positive.
-export function formatNumber(amount: number, currency: string, locale = i18n.language): string {
-  const decimals = currencyDecimals(currency)
-  const [whole, fraction] = roundMoney(Math.abs(amount), currency).toFixed(decimals).split('.')
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)
-  if (!fraction) return grouped
-  return grouped + (locale.startsWith('en') ? '.' : ',') + fraction
+// (452.30 in English, 452,30 in Russian and Uzbek). Always positive. The same in every
+// currency: a whole amount goes without decimals (643), any other shows two (23,67 · 0,50).
+export function formatNumber(amount: number, _currency?: string, locale = i18n.language): string {
+  const minor = Math.abs(toMinorUnits(amount))
+  const scale = 10 ** MONEY_DECIMALS
+  const grouped = String(Math.floor(minor / scale)).replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)
+  const cents = minor % scale
+  if (cents === 0) return grouped
+  return grouped + (locale.startsWith('en') ? '.' : ',') + String(cents).padStart(MONEY_DECIMALS, '0')
 }
 
 export interface MoneyParts {
@@ -197,7 +192,7 @@ export function moneyParts(
   { signed = false, locale = i18n.language }: { signed?: boolean; locale?: string } = {}
 ): MoneyParts {
   const number = formatNumber(amount, currency, locale)
-  const isZero = roundMoney(Math.abs(amount), currency) === 0
+  const isZero = toMinorUnits(amount) === 0
   const sign = isZero ? '' : amount < 0 ? '−' : signed ? '+' : ''
   const { symbol, before } = currencySymbol(currency, locale)
   return { sign, number, symbol, symbolBefore: before }
@@ -251,7 +246,8 @@ export function formatCompact(amount: number, locale = i18n.language): string {
       return `${sign}${text}${COMPACT_UNITS[lang][unit]}`
     }
   }
-  return sign + String(Math.round(abs))
+  // Under a thousand the amount is short already: 643, 23,67
+  return sign + formatNumber(abs, undefined, locale)
 }
 
 // =====================

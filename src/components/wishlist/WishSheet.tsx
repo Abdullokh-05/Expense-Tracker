@@ -6,6 +6,7 @@ import { useAppStore } from '@/store/appStore'
 import { useWishlistStore } from '@/store/wishlistStore'
 import { SUPPORTED_CURRENCIES } from '@/lib/constants'
 import { IMPORTANCE_LEVELS, importanceKey, safeLink } from '@/lib/wishlist'
+import { parseMoneyInput, sanitizeMoneyInput } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/BottomSheet'
 import { PopUp } from '@/components/ui/PopUp'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
@@ -49,7 +50,7 @@ export const WishSheet: React.FC<WishSheetProps> = ({ isOpen, onClose, item }) =
       toast.error(t('wishlist.nameRequired'))
       return
     }
-    const parsedPrice = parseFloat(price.replace(/[^0-9.]/g, ''))
+    const parsedPrice = parseMoneyInput(price, { allowNegative: false }) ?? NaN
     if (isNaN(parsedPrice) || parsedPrice <= 0) {
       toast.error(t('wishlist.priceRequired'))
       return
@@ -131,7 +132,7 @@ export const WishSheet: React.FC<WishSheetProps> = ({ isOpen, onClose, item }) =
               label={t('wishlist.price')}
               placeholder="0"
               value={price}
-              onChange={(e) => setPrice(e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.'))}
+              onChange={(e) => setPrice(sanitizeMoneyInput(e.target.value))}
             />
             <Select id="wish-currency-select" label={t('accounts.currency')} value={currency} onChange={(e) => setCurrency(e.target.value)}>
               {SUPPORTED_CURRENCIES.map((c) => (

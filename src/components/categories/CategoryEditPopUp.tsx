@@ -9,7 +9,7 @@ import { useTransactionStore } from '@/store/transactionStore'
 import { CATEGORY_COLORS, CATEGORY_EMOJIS } from '@/lib/constants'
 import { getCategoryName, pickCategoryColor } from '@/lib/categories'
 import { confirmedInRange } from '@/lib/analytics'
-import { currencySymbol, formatListAmount, formatNumber, getDateRange, parseMoneyInput } from '@/lib/utils'
+import { currencySymbol, formatListAmount, formatNumber, getDateRange, parseMoneyInput, sanitizeMoneyInput, roundMoney } from '@/lib/utils'
 import { PopUp } from '@/components/ui/PopUp'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/Switch'
@@ -73,7 +73,7 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
   const month = useMemo(() => {
     if (!category) return { count: 0, spent: 0 }
     const inMonth = confirmedInRange(transactions, getDateRange('month')).filter((txn) => txn.categoryId === category.id)
-    return { count: inMonth.length, spent: inMonth.reduce((sum, txn) => sum + txn.amountInBaseCurrency, 0) }
+    return { count: inMonth.length, spent: inMonth.reduce((sum, txn) => roundMoney(sum + txn.amountInBaseCurrency), 0) }
   }, [category, transactions])
 
   // The current icon and colour stay offered even when they aren't in the usual sets
@@ -249,7 +249,7 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
                     value={limit}
                     autoFocus={!budget}
                     aria-label={t('catEdit.limitAmount', { currency: currencySymbol(base).symbol })}
-                    onChange={(e) => setLimit(e.target.value)}
+                    onChange={(e) => setLimit(sanitizeMoneyInput(e.target.value))}
                   />
                   <span className="suffix" aria-hidden="true">{currencySymbol(base).symbol}</span>
                 </span>

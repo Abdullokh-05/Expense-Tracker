@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/store/appStore'
 import { useRatesStore } from '@/store/ratesStore'
 import { findCustomRate, formatRateLine, formatRateUnit, rateBetween, rateUnit } from '@/lib/rates'
-import { currencySymbol, formatShortDate, nowISO, parseMoneyInput } from '@/lib/utils'
+import { currencySymbol, formatShortDate, nowISO, parseNumberInput } from '@/lib/utils'
 import { SUPPORTED_CURRENCIES } from '@/lib/constants'
 import { PopUp } from '@/components/ui/PopUp'
 import { Button } from '@/components/ui/Button'
@@ -57,7 +57,7 @@ export const RatePopUp: React.FC<RatePopUpProps> = ({ isOpen, onClose, code }) =
   const others = (settings.customRates ?? []).filter((r) => !(r.code === picked && r.quote === base))
 
   const save = () => {
-    const typed = parseMoneyInput(value)
+    const typed = parseNumberInput(value)
     if (typed === null || typed <= 0) {
       toast.error(t('rates.invalid'))
       return

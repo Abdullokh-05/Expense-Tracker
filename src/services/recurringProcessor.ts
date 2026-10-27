@@ -1,4 +1,5 @@
 import { db } from '@/db/schema'
+import { allFromStored, toStored } from '@/db/money'
 import type { SyncQueueItem, Transaction } from '@/types'
 import { advanceByFrequency, generateId, nowISO, roundMoney, todayDate } from '@/lib/utils'
 import { getConversionRate } from '@/services/currencyApi'
@@ -21,11 +22,14 @@ export function processRecurringTransactions(userId = 'guest', baseCurrency: str
 
 async function run(userId: string, baseCurrency: string): Promise<number> {
   const today = todayDate()
-  const activeRTs = await db.recurringTransactions
-    .where('userId')
-    .equals(userId)
-    .filter((rt) => rt.isActive && rt.nextRunDate <= today)
-    .toArray()
+  const activeRTs = allFromStored(
+    'recurringTransactions',
+    await db.recurringTransactions
+      .where('userId')
+      .equals(userId)
+      .filter((rt) => rt.isActive && rt.nextRunDate <= today)
+      .toArray()
+  )
 
   if (activeRTs.length === 0) return 0
 
@@ -50,7 +54,7 @@ async function run(userId: string, baseCurrency: string): Promise<number> {
         status: rt.autoCreate ? 'confirmed' : 'pending',
         amount: rt.amount,
         currency: rt.currency,
-        amountInBaseCurrency: roundMoney(rt.amount * rate, baseCurrency),
+        amountInBaseCurrency: roundMoney(rt.amount * rate),
         exchangeRate: rate,
         categoryId: rt.categoryId,
         accountId: rt.accountId,
@@ -95,7 +99,7 @@ async function run(userId: string, baseCurrency: string): Promise<number> {
 
     // All or nothing, so a crash can't leave transactions created but the date not advanced
     await db.transaction('rw', db.transactions, db.recurringTransactions, db.syncQueue, async () => {
-      await db.transactions.bulkAdd(created)
+      await db.transactions.bulkAdd(created.map((txn) => toStored('transactions', txn)))
       await db.recurringTransactions.update(rt.id, { nextRunDate, updatedAt: now })
       await db.syncQueue.bulkAdd(syncItems)
     })

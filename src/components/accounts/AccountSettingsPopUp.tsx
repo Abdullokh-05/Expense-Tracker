@@ -8,7 +8,7 @@ import { useTransactionStore } from '@/store/transactionStore'
 import { useUiStore } from '@/store/uiStore'
 import { useConverter } from '@/store/ratesStore'
 import { ACCOUNT_COLORS, TYPE_COLORS, accountColor, accountLook, accountTypeLabel, getAccountBalances } from '@/lib/accounts'
-import { formatAmount, MASK, parseMoneyInput, roundMoney } from '@/lib/utils'
+import { formatAmount, MASK, parseMoneyInput, roundMoney, sanitizeMoneyInput } from '@/lib/utils'
 import { SUPPORTED_CURRENCIES } from '@/lib/constants'
 import { PopUp } from '@/components/ui/PopUp'
 import { Row } from '@/components/ui/Row'
@@ -90,7 +90,7 @@ export const AccountSettingsPopUp: React.FC<AccountSettingsPopUpProps> = ({ acco
       return
     }
     // The difference goes into the starting balance, so no made-up entry lands in History
-    await save({ startingBalance: roundMoney(account.startingBalance + wanted - balance, account.currency) })
+    await save({ startingBalance: roundMoney(account.startingBalance + wanted - balance) })
     toast.success(t('acct.corrected'))
     setOpen(null)
   }
@@ -207,7 +207,7 @@ export const AccountSettingsPopUp: React.FC<AccountSettingsPopUpProps> = ({ acco
                     inputMode="decimal"
                     value={target}
                     autoFocus
-                    onChange={(e) => setTarget(e.target.value)}
+                    onChange={(e) => setTarget(sanitizeMoneyInput(e.target.value, { allowNegative: true }))}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') correctBalance()
                     }}
