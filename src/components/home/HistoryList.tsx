@@ -52,6 +52,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
       key={txn.id}
       transaction={txn}
       category={categories.find((c) => c.id === txn.categoryId)}
+      subcategory={txn.subcategoryId ? categories.find((c) => c.id === txn.subcategoryId) : undefined}
       accounts={accounts}
       baseCurrency={baseCurrency}
       masked={masked}

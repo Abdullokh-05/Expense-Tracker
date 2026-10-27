@@ -43,7 +43,8 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     if (!isOpen) return
     const unlock = lockScroll()
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
+      // A pop-up opened over the sheet takes Escape for itself
+      if (e.key === 'Escape' && !document.querySelector('.pop')) onCloseRef.current()
     }
     document.addEventListener('keydown', handleKey)
     return () => {

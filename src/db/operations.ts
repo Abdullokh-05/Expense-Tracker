@@ -71,12 +71,24 @@ export async function archiveCategory(id: string): Promise<void> {
 // lose the subcategory. All or nothing. Returns how many entries were moved.
 export async function deleteSubcategory(userId: string, subcategoryId: string): Promise<number> {
   const now = nowISO()
-  return db.transaction('rw', db.transactions, db.categories, db.syncQueue, async () => {
+  const tables = [db.transactions, db.recurringTransactions, db.templates, db.categories, db.syncQueue]
+  return db.transaction('rw', tables, async () => {
+    const patch = { subcategoryId: null, updatedAt: now, synced: false }
     const entries = await db.transactions.where('userId').equals(userId).filter((t) => t.subcategoryId === subcategoryId).toArray()
     for (const txn of entries) {
-      const patch = { subcategoryId: null, updatedAt: now, synced: false }
       await db.transactions.update(txn.id, patch)
       await addToSyncQueue('transactions', 'update', txn.id, { ...fromStored('transactions', txn), ...patch })
+    }
+    // Recurring payments and templates that used it keep the parent too
+    const recurring = await db.recurringTransactions.where('userId').equals(userId).filter((r) => r.subcategoryId === subcategoryId).toArray()
+    for (const rt of recurring) {
+      await db.recurringTransactions.update(rt.id, patch)
+      await addToSyncQueue('recurring_transactions', 'update', rt.id, { ...fromStored('recurringTransactions', rt), ...patch })
+    }
+    const templates = await db.templates.where('userId').equals(userId).filter((tpl) => tpl.subcategoryId === subcategoryId).toArray()
+    for (const template of templates) {
+      await db.templates.update(template.id, patch)
+      await addToSyncQueue('templates', 'update', template.id, { ...fromStored('templates', template), ...patch })
     }
     await db.categories.delete(subcategoryId)
     await addToSyncQueue('categories', 'delete', subcategoryId, { id: subcategoryId })
@@ -108,14 +120,14 @@ export async function deleteCategoryMovingEntries(userId: string, categoryId: st
 
     const recurring = await db.recurringTransactions.where('userId').equals(userId).filter((r) => r.categoryId === categoryId).toArray()
     for (const rt of recurring) {
-      const patch = { categoryId: targetId, updatedAt: now, synced: false }
+      const patch = { categoryId: targetId, subcategoryId: null, updatedAt: now, synced: false }
       await db.recurringTransactions.update(rt.id, patch)
       await addToSyncQueue('recurring_transactions', 'update', rt.id, { ...fromStored('recurringTransactions', rt), ...patch })
     }
 
     const templates = await db.templates.where('userId').equals(userId).filter((tpl) => tpl.categoryId === categoryId).toArray()
     for (const template of templates) {
-      const patch = { categoryId: targetId, updatedAt: now, synced: false }
+      const patch = { categoryId: targetId, subcategoryId: null, updatedAt: now, synced: false }
       await db.templates.update(template.id, patch)
       await addToSyncQueue('templates', 'update', template.id, { ...fromStored('templates', template), ...patch })
     }

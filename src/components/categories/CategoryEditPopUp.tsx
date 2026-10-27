@@ -30,12 +30,14 @@ interface CategoryEditPopUpProps {
   kind: CategoryKind
   // Set for a subcategory: the category it belongs to (adding or editing one)
   parent?: Category
+  // Called with a category just added (the add sheet picks it straight away)
+  onCreated?: (category: Category) => void
 }
 
 // One category: name, icon, colour, (for outcome) a monthly limit and its subcategories.
 // A subcategory has only a name and an icon: it wears its parent's colour, and the parent's
 // limit already counts it. Saved with Save.
-export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, onClose, category, kind, parent: parentProp }) => {
+export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, onClose, category, kind, parent: parentProp, onCreated }) => {
   const { t } = useTranslation()
   const settings = useAppStore((s) => s.settings)
   const { categories, addCategory, editCategory, removeCategory, removeSubcategory } = useCategoryStore()
@@ -135,6 +137,7 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
           ...(parent ? { parentId: parent.id } : {}),
         })
         categoryId = created.id
+        onCreated?.(created)
       }
       // Limits are for outcome only, and set on the parent (it counts its subcategories)
       if (kind === 'expense' && categoryId && !isSub) {

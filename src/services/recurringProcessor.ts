@@ -57,6 +57,7 @@ async function run(userId: string, baseCurrency: string): Promise<number> {
         amountInBaseCurrency: roundMoney(rt.amount * rate),
         exchangeRate: rate,
         categoryId: rt.categoryId,
+        subcategoryId: rt.subcategoryId ?? null,
         accountId: rt.accountId,
         toAccountId: null,
         toAmount: null,

@@ -725,10 +725,6 @@
     "addNote": "Izoh qo'shish",
     "suggestion": "{{name}}?",
     "useSuggestion": "{{name}}ni tanlash",
-    "tapToSave": "Saqlash uchun kategoriyani bosing",
-    "clickToSave": "Saqlash uchun kategoriyani bosing",
-    "all": "Hammasi {{count}}",
-    "allCategories": "Barcha kategoriyalar",
     "date": "Sana",
     "anotherDay": "Boshqa kun",
     "repeat": "Takrorlash",
@@ -759,6 +755,14 @@
     "saved": "Saqlandi",
     "updated": "O'zgartirildi",
     "undo": "Bekor qilish",
-    "enterHint": "Enter tanlangan yoki taklif qilingan kategoriya bilan saqlaydi."
+    "back": "Orqaga",
+    "justCategory": "Faqat «{{name}}»",
+    "newSub": "Yangi ichki toifa",
+    "newCategory": "Yangi",
+    "manage": "Sozlash",
+    "details": "Tafsilotlar",
+    "keepAsTemplate": "Shablon sifatida ham saqlash",
+    "templatesHint": "Bugungi kunga yozish uchun shablonni bosing.",
+    "noTemplates": "Hozircha shablonlar yo'q. Tez-tez qiladigan yozuvni saqlash uchun yoqing."
   }
 }

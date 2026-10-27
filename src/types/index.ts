@@ -127,6 +127,7 @@ export interface TransactionTemplate {
   type: 'expense' | 'income'
   amount: number
   categoryId: string
+  subcategoryId?: string | null
   accountId: string | null
   note: string | null
   createdAt: string
@@ -158,6 +159,7 @@ export interface RecurringTransaction {
   amount: number
   currency: string
   categoryId: string | null
+  subcategoryId?: string | null
   accountId: string | null
   note: string | null
   frequency: RecurringFrequency

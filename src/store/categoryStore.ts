@@ -71,7 +71,12 @@ export const useCategoryStore = create<CategoryStore>((set, get) => ({
 
   removeSubcategory: async (id) => {
     await deleteSubcategory(getCurrentUserId(), id)
-    await Promise.all([get().loadCategories(), useTransactionStore.getState().loadTransactions()])
+    await Promise.all([
+      get().loadCategories(),
+      useTransactionStore.getState().loadTransactions(),
+      useRecurringStore.getState().loadRecurringTransactions(),
+      useTemplateStore.getState().loadTemplates(),
+    ])
   },
 
   removeCategory: async (id) => {

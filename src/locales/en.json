@@ -725,10 +725,6 @@
     "addNote": "Add a note",
     "suggestion": "{{name}}?",
     "useSuggestion": "Use {{name}}",
-    "tapToSave": "Tap a category to save",
-    "clickToSave": "Click a category to save",
-    "all": "All {{count}}",
-    "allCategories": "All categories",
     "date": "Date",
     "anotherDay": "Another day",
     "repeat": "Repeat",
@@ -759,6 +755,14 @@
     "saved": "Saved",
     "updated": "Updated",
     "undo": "Undo",
-    "enterHint": "Enter saves with the chosen or suggested category."
+    "back": "Back",
+    "justCategory": "Just {{name}}",
+    "newSub": "New subcategory",
+    "newCategory": "New",
+    "manage": "Manage",
+    "details": "Details",
+    "keepAsTemplate": "Also save as a template",
+    "templatesHint": "Tap one to record it for today.",
+    "noTemplates": "No templates yet. Turn this on to keep an entry you make often."
   }
 }

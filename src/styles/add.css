@@ -1,9 +1,9 @@
-/* Xarajat · the add / edit entry sheet: type, amount, note, account, category, then the keypad.
+/* Xarajat · the add / edit entry sheet: type, amount, one row of categories, small chips for
+   the details, then the keypad. As tall as it needs to be (about two thirds of a phone).
    Ported from the redesign's xarajat.css (section 9, "add sheet parts"). */
 @layer components {
   /* tall sheet from the bottom on phones; a dialog in the middle on wide screens */
-  .add-sheet { height: min(860px, calc(100dvh - max(16px, calc(env(safe-area-inset-top) + 8px)))); max-height: none; }
-  .add-sheet.typed { height: auto; max-height: calc(100dvh - max(16px, calc(env(safe-area-inset-top) + 8px))); }
+  .add-sheet { height: auto; max-height: calc(100dvh - max(16px, calc(env(safe-area-inset-top) + 8px))); }
   @media (min-width: 1024px) {
     .add-sheet, .add-sheet.typed {
       top: 50%; bottom: auto; left: 50%; right: auto; width: min(640px, calc(100% - 48px)); max-width: none;
@@ -40,17 +40,8 @@
   .dpill.open { background: var(--ink); color: var(--bg); }
   .dpill.icon { width: 44px; padding: 0; border-radius: 12px; }
 
-  /* rows that scroll sideways fade at the edge, so the cut reads as "more" */
-  .tpls, .accs {
-    display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 8px 16px 2px; flex: none;
-    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
-            mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
-  }
-  .tpls { padding-top: 10px; }
-  .tpls::-webkit-scrollbar, .accs::-webkit-scrollbar { display: none; }
-
   /* the amount, the note and its suggestion */
-  .entry { padding: 12px 16px 0; flex: none; }
+  .entry { padding: 4px 16px 0; flex: none; }
   .entry-amt { display: flex; align-items: baseline; min-height: 44px; min-width: 0; }
   .entry-amt .money-xl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .entry-amt .money-xl.long { font-size: 28px; }
@@ -63,38 +54,68 @@
   .amt-input::placeholder { color: var(--ink-2); }
   .entry-sub { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 1.3; font-weight: 500; color: var(--ink-2); min-height: 20px; font-variant-numeric: tabular-nums; }
   .entry-sub.err { color: var(--danger-text); }
-  .note-row { display: flex; align-items: center; gap: 8px; min-height: 44px; color: var(--ink-2); }
+  .note-row { display: flex; align-items: center; gap: 8px; min-height: 44px; color: var(--ink-2); padding: 0 16px; flex: none; }
   .note-row input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 16px; color: var(--ink); padding: 0; text-overflow: ellipsis; }
   .note-row input::placeholder { color: var(--ink-2); }
   .suggest { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-text); font-size: 15px; font-weight: 600; white-space: nowrap; flex: none; max-width: 50%; }
   .suggest > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 
-  /* categories: four across on phones, six on wide screens */
-  .hint { display: flex; align-items: center; gap: 8px; padding: 12px 16px 4px; font-size: 13px; line-height: 1.3; font-weight: 500; color: var(--ink-2); min-height: 20px; flex: none; }
-  .hint.go { color: var(--accent-text); font-weight: 600; }
-  .cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0 12px; flex: none; }
-  @media (min-width: 1024px) { .cats.wide { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
-  .cat { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px; border-radius: 12px; min-height: 72px; min-width: 0; color: var(--ink); transition: background-color var(--ease), transform var(--ease); }
-  .cat:hover { background: var(--fill); }
-  .cat:active { transform: scale(.97); }
-  .cat .bub { width: 44px; height: 44px; font-size: 22px; }
-  /* long names hyphenate (the page language is set) rather than break anywhere */
-  .cat-name { font-size: 13px; line-height: 1.2; font-weight: 500; text-align: center; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }
-  .cat.on .bub { box-shadow: 0 0 0 2px var(--accent-text); }
-  .cat-name.long { font-size: 12px; letter-spacing: -.01em; }
-  .cat-name.xlong { font-size: 11px; letter-spacing: -.02em; }
-  .cat.on .cat-name { font-weight: 600; }
-  .cat.sug .bub { outline: 2px dashed var(--accent-text); outline-offset: 2px; }
-  .cat.all .bub { background: var(--fill); color: var(--ink-2); }
+  /* a transfer between currencies: what arrives */
+  .recv { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px; }
+  .recv-input { flex: 0 1 200px; min-height: 40px; }
 
-  /* transfer */
-  .xfer-label { display: flex; align-items: center; justify-content: space-between; padding: 12px 8px 0 16px; min-height: 36px; }
+  /* one row of categories that scrolls sideways and fades at the edge, so the cut reads as "more" */
+  .cstrip {
+    display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 8px 16px; flex: none;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+            mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+  }
+  .cstrip::-webkit-scrollbar { display: none; }
+  .cchip {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px 0 10px; border-radius: 999px; flex: none;
+    background: var(--fill); color: var(--ink); font-size: 15px; line-height: 1.2; font-weight: 500; white-space: nowrap;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; position: relative;
+    transition: background-color var(--ease), color var(--ease), transform var(--ease), box-shadow var(--ease);
+  }
+  .cchip:hover { background: var(--fill-2); }
+  .cchip:active { transform: scale(.97); }
+  .cchip .emo { font-size: 18px; line-height: 1; }
+  .cchip .cchip-more { color: var(--ink-2); margin-left: -2px; }
+  .cchip.on { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--accent-text); }
+  .cchip.on .cchip-more { color: currentColor; }
+  .cchip.sug { box-shadow: inset 0 0 0 1.5px var(--accent-text); background: transparent; }
+  .cchip.add { background: transparent; color: var(--accent-text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--line-2); padding: 0 14px 0 10px; }
+  .cchip.back { background: transparent; color: var(--ink-2); padding: 0 12px 0 6px; }
+  .strip-link { flex: none; min-height: 40px; padding: 0 8px; color: var(--ink-2); font-size: 14px; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-2); white-space: nowrap; position: relative; }
+  .strip-link:hover { color: var(--ink); }
+  /* the strip's last item clears the fade */
+  .cstrip::after { content: ''; flex: 0 0 16px; }
+  @media (min-width: 1024px) {
+    .cstrip { flex-wrap: wrap; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+    .cstrip::after { display: none; }
+  }
 
-  .dpills { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 16px 12px; flex: none; }
+  /* the details: account, date, note, repeat, template */
+  .extras { display: flex; align-items: center; gap: 8px; padding: 0 16px 8px; flex: none; min-width: 0; }
+  .xchip {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 36px; padding: 0 10px; border-radius: 12px; flex: none;
+    background: var(--fill); color: var(--ink-2); font-size: 14px; line-height: 1.2; font-weight: 500; white-space: nowrap; position: relative;
+    transition: background-color var(--ease), color var(--ease);
+  }
+  /* small chips still answer a whole fingertip */
+  .xchip::before { content: ''; position: absolute; inset: -4px 0; }
+  .xchip:hover { background: var(--fill-2); color: var(--ink); }
+  .xchip.on { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+  .xchip.open { background: var(--ink); color: var(--bg); }
+  .xchip.xchip-acct { color: var(--ink); flex: 0 1 auto; min-width: 0; max-width: 52%; justify-content: flex-start; }
+  .xchip.xchip-acct.open { color: var(--bg); }
+  .xchip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+  .acc-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
 
   /* the bottom: keypad, a panel in its place, or the save row */
-  .dock { padding: 12px 16px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); flex: none; background: var(--surface); }
-  .keys { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, 44px); gap: 8px; }
+  .dock { padding: 10px 16px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); flex: none; background: var(--surface); }
+  .keys { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, 42px); gap: 6px; }
   .key { border-radius: 12px; background: var(--fill); font-size: 22px; line-height: 1; font-weight: 500; display: grid; place-items: center; font-variant-numeric: tabular-nums; color: var(--ink); transition: background-color var(--ease), transform var(--ease); }
   .key:hover { background: var(--fill-2); }
   .key:active { transform: scale(.96); }
@@ -102,9 +123,12 @@
   .key[disabled] { opacity: .4; cursor: default; transform: none; }
   .key.save { grid-column: 4; grid-row: 2 / span 3; color: var(--accent-ink); font-size: 16px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
     background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, #fff) 0%, var(--accent) 70%); }
+  /* "Сохранить" fits a 360 px phone's key */
+  .key.save span { font-size: 14px; letter-spacing: -.01em; max-width: 100%; padding: 0 2px; }
   .key.save:hover { background: linear-gradient(180deg, color-mix(in srgb, var(--accent-hover) 86%, #fff) 0%, var(--accent-hover) 70%); }
-  .panel { display: flex; flex-direction: column; gap: 12px; min-height: 200px; }
-  .panel.short { min-height: 0; }
+  /* as tall as the keypad it replaces, so the sheet doesn't jump; longer ones scroll */
+  .panel { display: flex; flex-direction: column; gap: 10px; height: 186px; overflow-y: auto; overscroll-behavior: contain; }
+  .panel.typed { height: auto; max-height: 40dvh; padding-bottom: 10px; }
   .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
   .opt { display: flex; flex-direction: column; gap: 8px; }
   .save-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
