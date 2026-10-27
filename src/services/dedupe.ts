@@ -19,12 +19,12 @@ export async function mergeDuplicates(userId: string): Promise<number> {
 
   const transactions = (await db.transactions.where('userId').equals(userId).toArray()) as Transaction[]
   const uses = new Map<string, number>()
-  const use = (id: string | null | undefined) => id && uses.set(id, (uses.get(id) ?? 0) + 1)
+  const count = (id: string | null | undefined) => id && uses.set(id, (uses.get(id) ?? 0) + 1)
   for (const txn of transactions) {
-    use(txn.categoryId)
-    use(txn.subcategoryId)
-    use(txn.accountId)
-    use(txn.toAccountId)
+    count(txn.categoryId)
+    count(txn.subcategoryId)
+    count(txn.accountId)
+    count(txn.toAccountId)
   }
 
   const keeperOf = <T extends { id: string; createdAt: string }>(group: T[]) =>
