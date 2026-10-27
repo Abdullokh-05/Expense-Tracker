@@ -15,6 +15,8 @@ import { useTransactionStore } from '@/store/transactionStore'
 import { useRecurringStore } from '@/store/recurringStore'
 import { reloadAllData } from '@/store/reloadAll'
 import { processRecurringTransactions } from '@/services/recurringProcessor'
+import { scheduleSync, syncAll } from '@/services/syncService'
+import { onQueued } from '@/services/syncSignal'
 import { useRatesStore } from '@/store/ratesStore'
 
 // The income and outcome breakdowns became the Stats tab; old links land there
@@ -47,12 +49,30 @@ export const App: React.FC = () => {
     }
   }, [setOnline])
 
+  // Signed in, changes sync a moment after they're made, when the app comes back to the
+  // front and when the connection returns
+  useEffect(() => {
+    onQueued(() => scheduleSync())
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') scheduleSync(300)
+    }
+    const handleOnline = () => scheduleSync(300)
+    document.addEventListener('visibilitychange', handleVisible)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [])
+
   // Load the user's data once for every page, then run the recurring transaction checker
   useEffect(() => {
     if (!settings.onboardingCompleted) return
 
     const start = async () => {
       await reloadAllData()
+      // What changed on other devices first, so planned payments aren't recorded twice
+      await syncAll().catch((err) => console.error('Sync failed', err))
 
       const { baseCurrency } = useAppStore.getState().settings
       // Rates turn foreign-currency accounts and wishes into the base currency; loading them

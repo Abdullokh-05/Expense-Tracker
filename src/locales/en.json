@@ -264,7 +264,10 @@
     "toggleTheme": "Switch theme",
     "darkTheme": "Dark theme",
     "lightTheme": "Light theme",
-    "categoriesLimits": "Categories and limits"
+    "categoriesLimits": "Categories and limits",
+    "syncFailed": "Couldn’t sync: {{reason}}",
+    "alreadyRegistered": "This email already has an account. Sign in instead.",
+    "confirmEmail": "Almost there: open the link we emailed you, then sign in here with the same email and password."
   },
   "common": {
     "loading": "Loading...",

@@ -1,5 +1,6 @@
 import { db } from './schema'
 import { allFromStored, fromStored, toStored } from './money'
+import { notifyQueued } from '@/services/syncSignal'
 import type {
   Transaction,
   Category,
@@ -447,6 +448,7 @@ export async function addToSyncQueue(
     retries: 0,
   }
   await db.syncQueue.add(item)
+  notifyQueued()
 }
 
 export async function getSyncQueue(): Promise<SyncQueueItem[]> {

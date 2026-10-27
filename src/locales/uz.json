@@ -264,7 +264,10 @@
     "toggleTheme": "Mavzuni almashtirish",
     "darkTheme": "Qorong'i mavzu",
     "lightTheme": "Yorug' mavzu",
-    "categoriesLimits": "Kategoriyalar va limitlar"
+    "categoriesLimits": "Kategoriyalar va limitlar",
+    "syncFailed": "Sinxronlab bo‘lmadi: {{reason}}",
+    "alreadyRegistered": "Bu pochta uchun akkaunt allaqachon bor. Ro‘yxatdan o‘tish o‘rniga kiring.",
+    "confirmEmail": "Deyarli tayyor: xatdagi havolani oching, so‘ng shu yerda o‘sha pochta va parol bilan kiring."
   },
   "common": {
     "loading": "Yuklanmoqda...",

@@ -43,7 +43,7 @@ import { formatListAmount, formatShortDate, todayDate, toDateString } from '@/li
 import { db } from '@/db/schema'
 import { seedDefaultCategories } from '@/db/operations'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { processSyncQueue, migrateGuestData } from '@/services/syncService'
+import { syncAll } from '@/services/syncService'
 import { exportBackup, exportTransactionsToCSV, restoreBackup } from '@/services/backupService'
 import { convertBaseCurrency } from '@/services/currencyApi'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -128,11 +128,10 @@ export const SettingsPage: React.FC = () => {
     const { data } = await supabase.auth.getSession()
     if (data.session?.user) {
       setAuthEmail(data.session.user.email || t('settings.user'))
-      setUserId(data.session.user.id)
     } else {
       setAuthEmail(null)
     }
-  }, [setUserId, t])
+  }, [t])
 
   useEffect(() => {
     loadSync()
@@ -141,9 +140,10 @@ export const SettingsPage: React.FC = () => {
   const syncNow = async () => {
     setSyncing(true)
     try {
-      const { processed } = await processSyncQueue()
+      const result = await syncAll()
       setSyncQueue(await db.syncQueue.count())
-      toast.success(t('settings.synced', { count: processed }))
+      if (result.error) toast.error(t('settings.syncFailed', { reason: result.error }))
+      else toast.success(t('settings.synced', { count: result.pushed + result.pulled }))
     } catch {
       toast.error(t('settings.syncError'))
     } finally {
@@ -164,15 +164,20 @@ export const SettingsPage: React.FC = () => {
           await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
         : await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-      if (data.user) {
-        setAuthEmail(data.user.email || t('settings.user'))
-        setUserId(data.user.id)
-        await migrateGuestData(data.user.id)
-        await reloadAllData()
-        toast.success(register ? t('settings.registered') : t('settings.signedIn'))
-        close()
-        loadSync()
+      // No session yet: a new account waiting for its email to be confirmed, or (with no
+      // identities) an email that already has an account. Nothing on this device changes.
+      if (!data.session) {
+        if (register && data.user?.identities?.length === 0) toast.error(t('settings.alreadyRegistered'))
+        else toast.info(t('settings.confirmEmail'))
+        return
       }
+      setAuthEmail(data.session.user.email || t('settings.user'))
+      // This device's entries move to the account, go up, and the account's come down
+      const result = await syncAll()
+      if (result.error) toast.error(t('settings.syncFailed', { reason: result.error }))
+      else toast.success(register ? t('settings.registered') : t('settings.signedIn'))
+      close()
+      loadSync()
     } catch (e: unknown) {
       toast.error(e instanceof Error && e.message ? e.message : t('settings.authError'))
     } finally {
