@@ -83,7 +83,7 @@ export const HistoryFilters: React.FC<HistoryFiltersProps> = ({
   const categoryChoices =
     type === 'transfer'
       ? []
-      : sortCategories(categories.filter((c) => !c.isArchived && (!type || getCategoryKind(c) === type)))
+      : sortCategories(categories.filter((c) => !c.parentId && !c.isArchived && (!type || getCategoryKind(c) === type)))
   const accountChoices = accounts.filter((a) => !a.isArchived || a.id === filter.accountId)
   const { symbol } = currencySymbol(baseCurrency)
 

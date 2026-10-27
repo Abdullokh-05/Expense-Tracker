@@ -143,7 +143,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const accounts = [...usable.filter((a) => a.includeInTotal), ...usable.filter((a) => !a.includeInTotal)]
   const isTransfer = type === 'transfer'
   const shownCategories = categories.filter(
-    (c) => getCategoryKind(c) === type && (!c.isArchived || c.id === transaction?.categoryId)
+    (c) => !c.parentId && getCategoryKind(c) === type && (!c.isArchived || c.id === transaction?.categoryId)
   )
 
   useEffect(() => {

@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Archive, ArchiveRestore, Ellipsis, Gauge } from 'lucide-react'
+import { Archive, ArchiveRestore, Ellipsis, Gauge, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { Category, CategoryKind } from '@/types'
 import { useAppStore } from '@/store/appStore'
 import { useCategoryStore } from '@/store/categoryStore'
 import { useBudgetStore } from '@/store/budgetStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { CATEGORY_COLORS, CATEGORY_EMOJIS } from '@/lib/constants'
-import { getCategoryName, pickCategoryColor } from '@/lib/categories'
+import { findOtherCategory, getCategoryName, isOtherCategory, pickCategoryColor, subcategoriesOf } from '@/lib/categories'
 import { confirmedInRange } from '@/lib/analytics'
 import { currencySymbol, formatListAmount, formatNumber, getDateRange, parseMoneyInput, sanitizeMoneyInput, roundMoney } from '@/lib/utils'
 import { PopUp } from '@/components/ui/PopUp'
+import { ConfirmDialog } from '@/components/ui/BottomSheet'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/Switch'
 import { toast } from '@/components/ui/Toast'
@@ -27,20 +28,32 @@ interface CategoryEditPopUpProps {
   // Edits this category; without it a new one is added to `kind`
   category?: Category
   kind: CategoryKind
+  // Set for a subcategory: the category it belongs to (adding or editing one)
+  parent?: Category
 }
 
-// One category: name, icon, colour and (for outcome) a monthly limit. Saved with Save.
-export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, onClose, category, kind }) => {
+// One category: name, icon, colour, (for outcome) a monthly limit and its subcategories.
+// A subcategory has only a name and an icon: it wears its parent's colour, and the parent's
+// limit already counts it. Saved with Save.
+export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, onClose, category, kind, parent: parentProp }) => {
   const { t } = useTranslation()
   const settings = useAppStore((s) => s.settings)
-  const { categories, addCategory, editCategory } = useCategoryStore()
+  const { categories, addCategory, editCategory, removeCategory, removeSubcategory } = useCategoryStore()
   const { budgets, setBudgetLimit, removeBudget } = useBudgetStore()
   const transactions = useTransactionStore((s) => s.transactions)
   const base = settings.baseCurrency
 
-  const budget = budgets.find((b) => b.categoryId === category?.id)
+  const parent = parentProp ?? categories.find((c) => c.id === category?.parentId)
+  const isSub = Boolean(parent)
+  const budget = isSub ? undefined : budgets.find((b) => b.categoryId === category?.id)
   // Built-in categories show their translated name; it's only stored if the user changes it
   const shownName = category ? getCategoryName(category, t) : ''
+  const children = category && !isSub ? subcategoriesOf(categories, category.id) : []
+
+  // undefined = closed, null = adding one, otherwise the subcategory being edited
+  const [subEditing, setSubEditing] = useState<Category | null | undefined>(undefined)
+  // The category or subcategory waiting for "Delete" to be confirmed
+  const [deleting, setDeleting] = useState<Category | null>(null)
 
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('')
@@ -54,10 +67,12 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
     if (!isOpen) return
     setName(shownName)
     setIcon(category?.icon ?? QUICK_ICONS[kind][0])
-    setColor(category?.color ?? pickCategoryColor(categories))
+    setColor(parent?.color ?? category?.color ?? pickCategoryColor(categories))
     setLimitOn(Boolean(budget?.monthlyLimit))
     setLimit(budget?.monthlyLimit ? formatNumber(budget.monthlyLimit, settings.baseCurrency) : '')
     setAllIcons(false)
+    setSubEditing(undefined)
+    setDeleting(null)
   }, [isOpen, category, kind]) // oxlint-disable-line react-hooks/exhaustive-deps -- reset only when it opens
 
   // The chosen icon can sit far along the row: bring it into view when the pop-up opens
@@ -72,9 +87,12 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
   // This month so far, for the line under the limit
   const month = useMemo(() => {
     if (!category) return { count: 0, spent: 0 }
-    const inMonth = confirmedInRange(transactions, getDateRange('month')).filter((txn) => txn.categoryId === category.id)
+    // A category's entries include its subcategories' (they keep the parent as categoryId)
+    const inMonth = confirmedInRange(transactions, getDateRange('month')).filter((txn) =>
+      isSub ? txn.subcategoryId === category.id : txn.categoryId === category.id
+    )
     return { count: inMonth.length, spent: inMonth.reduce((sum, txn) => roundMoney(sum + txn.amountInBaseCurrency), 0) }
-  }, [category, transactions])
+  }, [category, transactions, isSub])
 
   // The current icon and colour stay offered even when they aren't in the usual sets
   const quickIcons = QUICK_ICONS[kind].includes(icon) || !icon ? QUICK_ICONS[kind] : [icon, ...QUICK_ICONS[kind]]
@@ -105,13 +123,21 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
       let categoryId = category?.id
       if (category) {
         const renamed = name.trim() !== shownName
-        await editCategory(category.id, { icon, color, ...(renamed ? { name: name.trim() } : {}) })
+        await editCategory(category.id, { icon, ...(isSub ? {} : { color }), ...(renamed ? { name: name.trim() } : {}) })
       } else {
-        const created = await addCategory({ userId: settings.userId, name: name.trim(), icon, color, kind, isArchived: false })
+        const created = await addCategory({
+          userId: settings.userId,
+          name: name.trim(),
+          icon,
+          color: parent?.color ?? color,
+          kind,
+          isArchived: false,
+          ...(parent ? { parentId: parent.id } : {}),
+        })
         categoryId = created.id
       }
-      // Limits are for outcome only
-      if (kind === 'expense' && categoryId) {
+      // Limits are for outcome only, and set on the parent (it counts its subcategories)
+      if (kind === 'expense' && categoryId && !isSub) {
         if (limitOn && parsedLimit) await setBudgetLimit(categoryId, parsedLimit)
         else if (budget) await removeBudget(budget.id)
       }
@@ -136,13 +162,61 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
     }
   }
 
+  // ── Deleting: a subcategory's entries stay on its parent, a category's go to "Other" ──
+  const entriesOf = (target: Category) =>
+    transactions.filter((txn) => (target.parentId ? txn.subcategoryId === target.id : txn.categoryId === target.id)).length
+  const other = findOtherCategory(categories, kind)
+  const otherName = other ? getCategoryName(other, t) : t(kind === 'expense' ? 'categories.other' : 'categories.otherIncome')
+  const deletingSub = Boolean(deleting?.parentId)
+  const deletingCount = deleting ? entriesOf(deleting) : 0
+  const ownerName = parent ? getCategoryName(parent, t) : shownName
+  const deleteText = !deleting
+    ? ''
+    : deletingSub
+      ? deletingCount > 0
+        ? t('catEdit.deleteSubMove', { count: deletingCount, parent: ownerName })
+        : t('catEdit.deleteNoEntries')
+      : [
+          deletingCount > 0 ? t('catEdit.deleteMove', { count: deletingCount, other: otherName }) : t('catEdit.deleteNoEntries'),
+          t('catEdit.deleteAlso'),
+        ].join(' ')
+
+  const confirmDelete = async () => {
+    const target = deleting
+    if (!target) return
+    try {
+      if (target.parentId) {
+        await removeSubcategory(target.id)
+        toast.success(t('catEdit.subDeleted'))
+        // Deleted from its own pop-up, that one closes; from the parent's list, the parent stays open
+        if (target.id === category?.id) onClose()
+      } else {
+        await removeCategory(target.id)
+        toast.success(t('catEdit.deleted'))
+        onClose()
+      }
+    } catch {
+      toast.error(t('common.error'))
+    }
+  }
+
   const kindLabel = kind === 'expense' ? t('home.outcome') : t('home.income')
+  const headSub = isSub
+    ? category
+      ? `${ownerName} · ${t('catEdit.entriesThisMonth', { count: month.count })}`
+      : t('catEdit.subOf', { parent: ownerName })
+    : category
+      ? `${kindLabel} · ${t('catEdit.entriesThisMonth', { count: month.count })}`
+      : kindLabel
+  const title = category
+    ? t(isSub ? 'catEdit.editSubTitle' : 'categories.editTitle')
+    : t(isSub ? 'catEdit.newSubTitle' : 'categories.newTitle')
 
   return (
     <PopUp
       isOpen={isOpen}
       onClose={onClose}
-      label={category ? t('categories.editTitle') : t('categories.newTitle')}
+      label={title}
       header={
         <div className="flex items-center gap-3 min-w-0">
           <span
@@ -153,10 +227,8 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
             {icon}
           </span>
           <div className="flex flex-col gap-0.5 min-w-0">
-            <h2 className="pop-title">{name.trim() || (category ? shownName : t('categories.newTitle'))}</h2>
-            <p className="pop-sub text-[14px]">
-              {category ? `${kindLabel} · ${t('catEdit.entriesThisMonth', { count: month.count })}` : kindLabel}
-            </p>
+            <h2 className="pop-title">{name.trim() || (category ? shownName : title)}</h2>
+            <p className="pop-sub text-[14px]">{headSub}</p>
           </div>
         </div>
       }
@@ -209,6 +281,7 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
           </div>
         </div>
 
+        {!isSub && (
         <div className="field">
           <span className="field-label" id="category-colour-label">{t('accounts.colour')}</span>
           <div className="swatches" role="radiogroup" aria-labelledby="category-colour-label">
@@ -226,8 +299,9 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
             ))}
           </div>
         </div>
+        )}
 
-        {kind === 'expense' && (
+        {kind === 'expense' && !isSub && (
           <div className="pbox">
             <div className="prow">
               <span className="prow-ico" aria-hidden="true">
@@ -259,13 +333,97 @@ export const CategoryEditPopUp: React.FC<CategoryEditPopUpProps> = ({ isOpen, on
           </div>
         )}
 
+        {/* ── Subcategories: a finer split of this category's entries ── */}
+        {category && !isSub && !category.isArchived && (
+          <div className="field">
+            <span className="field-label" id="subcategories-label">{t('catEdit.subsTitle')}</span>
+            <div className="sgroup" role="list" aria-labelledby="subcategories-label">
+              {children.map((child) => {
+                const childName = getCategoryName(child, t)
+                return (
+                  <div key={child.id} className="prow sub-row" role="listitem">
+                    <span className="bub" style={{ '--c': color } as React.CSSProperties} aria-hidden="true">
+                      {child.icon}
+                    </span>
+                    <span className="prow-main">
+                      <span className="prow-title">
+                        <span>{childName}</span>
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="iconbtn"
+                      aria-label={t('catEdit.editSub', { name: childName })}
+                      title={t('catEdit.editSub', { name: childName })}
+                      onClick={() => setSubEditing(child)}
+                    >
+                      <Pencil size={18} strokeWidth={1.75} />
+                    </button>
+                    <button
+                      type="button"
+                      className="iconbtn text-danger-text"
+                      aria-label={t('catEdit.deleteSub', { name: childName })}
+                      title={t('catEdit.deleteSub', { name: childName })}
+                      onClick={() => setDeleting(child)}
+                    >
+                      <Trash2 size={18} strokeWidth={1.75} />
+                    </button>
+                  </div>
+                )
+              })}
+              <button type="button" className="prow" onClick={() => setSubEditing(null)}>
+                <span className="prow-ico bg-accent-soft text-accent-text" aria-hidden="true">
+                  <Plus size={18} strokeWidth={2} />
+                </span>
+                <span className="prow-main">
+                  <span className="prow-title">
+                    <span className="text-accent-text font-semibold">{t('catEdit.addSub')}</span>
+                  </span>
+                </span>
+              </button>
+            </div>
+            {children.length === 0 && <span className="t-cap px-1">{t('catEdit.subsHint')}</span>}
+          </div>
+        )}
+
         {category && (
-          <button type="button" className="btn ghost self-center text-danger-text" onClick={toggleArchive}>
-            {category.isArchived ? <ArchiveRestore size={18} strokeWidth={1.75} aria-hidden="true" /> : <Archive size={18} strokeWidth={1.75} aria-hidden="true" />}
-            {category.isArchived ? t('catEdit.restore') : t('catEdit.archive')}
-          </button>
+          <div className="flex flex-wrap justify-center gap-x-2">
+            {!isSub && (
+              <button type="button" className="btn ghost text-danger-text" onClick={toggleArchive}>
+                {category.isArchived ? <ArchiveRestore size={18} strokeWidth={1.75} aria-hidden="true" /> : <Archive size={18} strokeWidth={1.75} aria-hidden="true" />}
+                {category.isArchived ? t('catEdit.restore') : t('catEdit.archive')}
+              </button>
+            )}
+            {/* "Other" is where deleted categories' entries go, so it can't be deleted itself */}
+            {!isOtherCategory(category) && (
+              <button type="button" className="btn ghost text-danger-text" onClick={() => setDeleting(category)}>
+                <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
+                {t(isSub ? 'catEdit.deleteSubButton' : 'catEdit.delete')}
+              </button>
+            )}
+          </div>
         )}
       </form>
+
+      {category && !isSub && (
+        <CategoryEditPopUp
+          isOpen={subEditing !== undefined}
+          onClose={() => setSubEditing(undefined)}
+          category={subEditing ?? undefined}
+          parent={category}
+          kind={kind}
+        />
+      )}
+
+      <ConfirmDialog
+        isOpen={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onConfirm={confirmDelete}
+        title={t('catEdit.deleteTitle', { name: deleting ? getCategoryName(deleting, t) : '' })}
+        description={deleteText}
+        confirmLabel={!deletingSub && deletingCount > 0 ? t('catEdit.deleteMoveConfirm', { other: otherName }) : t('common.delete')}
+        danger
+      />
     </PopUp>
   )
 }

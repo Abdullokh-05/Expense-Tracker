@@ -29,6 +29,9 @@ export interface Transaction {
   amountInBaseCurrency: number
   exchangeRate: number
   categoryId: string | null
+  // Optional finer split inside categoryId (Car → Fuel). categoryId always stays the parent,
+  // so totals and limits by category include their subcategories without extra work.
+  subcategoryId?: string | null
   // Account the money left (expense, transfer) or entered (income); the amount is in its currency
   accountId: string | null
   // Transfers only: the receiving account, and the amount that arrived in its currency
@@ -60,8 +63,12 @@ export interface Category {
   kind?: CategoryKind
   isArchived: boolean
   isDefault?: boolean // built-in categories
-  // Place in the list (and on the add screen) once the user has reordered it
+  // Place in the list (and on the add screen) once the user has reordered it; a
+  // subcategory's place is among its siblings
   sortOrder?: number
+  // Set on a subcategory: the category it belongs to. One level only: a subcategory has no
+  // children of its own, takes its parent's colour and is of the parent's kind.
+  parentId?: string | null
   createdAt: string
   updatedAt: string
   synced?: boolean

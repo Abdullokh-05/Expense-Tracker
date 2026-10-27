@@ -54,7 +54,11 @@ export const PopUp: React.FC<PopUpProps> = ({
     if (cameFromOutside) dialog?.focus()
 
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
+      if (e.key !== 'Escape') return
+      // With one pop-up over another, Escape closes only the one on top
+      const pops = document.querySelectorAll('.pop')
+      if (dialog && pops[pops.length - 1] !== dialog) return
+      onCloseRef.current()
     }
     document.addEventListener('keydown', handleKey)
     return () => {

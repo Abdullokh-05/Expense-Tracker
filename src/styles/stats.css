@@ -43,6 +43,15 @@
   .crow-bot { display: flex; align-items: center; gap: 8px; }
   .hbar { flex: 1; min-width: 0; height: 6px; }
   .hbar > span { display: block; height: 6px; border-radius: 0 3px 3px 0; background: var(--viz-mark); min-width: 2px; }
+  /* a category with subcategories opens in place */
+  .crow-chev { width: 20px; flex: none; display: grid; place-items: center; color: var(--ink-2); transition: transform var(--ease); }
+  .crow-chev.open { transform: rotate(180deg); }
+  .crow-subs { display: flex; flex-direction: column; padding: 0 0 8px 24px; border-top: 1px solid var(--line); }
+  .crow-subs + .crow { border-top: 1px solid var(--line); }
+  .crow.sub { min-height: 48px; }
+  .crow.sub .bub { width: 28px; height: 28px; font-size: 15px; border-radius: 8px; }
+  .crow.sub .crow-name { font-size: 15px; }
+  @media (prefers-reduced-motion: reduce) { .crow-chev { transition: none; } }
   .crow-pct { width: 36px; flex: none; text-align: right; font-size: 13px; line-height: 1; font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 
   /* limit meters: a status colour, an icon and words, never colour alone */

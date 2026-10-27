@@ -42,9 +42,53 @@ export function sortCategories(categories: Category[]): Category[] {
   )
 }
 
+// =====================
+// Subcategories (one level: Car → Fuel, Carwash)
+// =====================
+export function isSubcategory(category: Category): boolean {
+  return Boolean(category.parentId)
+}
+
+// Categories that aren't subcategories: what lists, pickers and charts show
+export function topLevelCategories(categories: Category[]): Category[] {
+  return categories.filter((category) => !category.parentId)
+}
+
+// A category's subcategories, in the order the user set
+export function subcategoriesOf(categories: Category[], parentId: string): Category[] {
+  return sortCategories(categories.filter((category) => category.parentId === parentId))
+}
+
+// The category an entry counts under: a subcategory's id gives its parent
+export function rootCategoryId(categories: Category[], categoryId: string | null): string | null {
+  if (!categoryId) return null
+  return categories.find((category) => category.id === categoryId)?.parentId ?? categoryId
+}
+
+// Built-in names of the catch-all categories entries move to when theirs is deleted
+const OTHER_NAMES: Record<CategoryKind, string> = {
+  expense: DEFAULT_CATEGORIES[DEFAULT_CATEGORY_KEYS.indexOf('other')].name,
+  income: DEFAULT_INCOME_CATEGORIES[DEFAULT_INCOME_CATEGORY_KEYS.indexOf('otherIncome')].name,
+}
+
+export function isOtherCategory(category: Category): boolean {
+  return Boolean(category.isDefault) && !category.parentId && category.name === OTHER_NAMES[getCategoryKind(category)]
+}
+
+// "Other" (or "Other income") of a kind, if the user still has it
+export function findOtherCategory(categories: Category[], kind: CategoryKind): Category | undefined {
+  return categories.find((category) => getCategoryKind(category) === kind && isOtherCategory(category))
+}
+
+// How to recreate "Other" of a kind if it's gone
+export function otherCategorySeed(kind: CategoryKind) {
+  const seeds = kind === 'expense' ? DEFAULT_CATEGORIES : DEFAULT_INCOME_CATEGORIES
+  return seeds.find((seed) => seed.name === OTHER_NAMES[kind])!
+}
+
 // First palette color no category uses yet, so new categories stay distinguishable in charts
 export function pickCategoryColor(categories: Category[]): string {
-  const used = new Set(categories.filter((c) => !c.isArchived).map((c) => c.color.toLowerCase()))
+  const used = new Set(topLevelCategories(categories).filter((c) => !c.isArchived).map((c) => c.color.toLowerCase()))
   const free = CATEGORY_COLORS.find(({ color }) => !used.has(color.toLowerCase()))
   return (free ?? CATEGORY_COLORS[categories.length % CATEGORY_COLORS.length]).color
 }

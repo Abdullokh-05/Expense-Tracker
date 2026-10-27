@@ -1,14 +1,14 @@
 import React, { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, CircleAlert, CircleCheck, Ellipsis, TrendingDown, TrendingUp, TriangleAlert } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, CircleAlert, CircleCheck, Ellipsis, TrendingDown, TrendingUp, TriangleAlert } from 'lucide-react'
 import type { Category, CategoryKind } from '@/types'
 import { useAppStore } from '@/store/appStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { useCategoryStore } from '@/store/categoryStore'
 import { useBudgetStore } from '@/store/budgetStore'
 import { useUiStore } from '@/store/uiStore'
-import { confirmedInRange, getCategorySpending, sumByType } from '@/lib/analytics'
+import { confirmedInRange, getCategorySpending, getSubcategorySpending, sumByType } from '@/lib/analytics'
 import { getCategoryName } from '@/lib/categories'
 import {
   daysBetween,
@@ -73,6 +73,15 @@ export const StatsPage: React.FC = () => {
   const [offset, setOffset] = useState(() => Math.min(0, Number(searchParams.get('m')) || 0))
   const [hovered, setHovered] = useState<number | null>(null)
   const [showOther, setShowOther] = useState(false)
+  // Categories opened to show their subcategories
+  const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set())
+  const toggleCategory = (id: string) =>
+    setOpenCategories((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   const [editing, setEditing] = useState<Category | null>(null)
   const isOutcome = kind === 'expense'
 
@@ -190,6 +199,62 @@ export const StatsPage: React.FC = () => {
       </>
     )
     const label = `${item.categoryName}: ${masked ? t('home.amountHidden') : formatAmount(item.amount, base)}, ${item.percentage}%`
+
+    // A category with subcategories opens in place to show how it splits; the split ends
+    // with a way to its entries in History
+    if (known && categories.some((c) => c.parentId === item.categoryId)) {
+      const isOpen = openCategories.has(item.categoryId)
+      const subs = isOpen ? getSubcategorySpending(month, categories, t, item.categoryId, kind) : []
+      return (
+        <React.Fragment key={item.categoryId}>
+          <button
+            type="button"
+            className="crow"
+            aria-expanded={isOpen}
+            aria-label={`${label}. ${t(isOpen ? 'stats.hideSubs' : 'stats.showSubs')}`}
+            onClick={() => toggleCategory(item.categoryId)}
+          >
+            {content}
+            <span className={`crow-chev${isOpen ? ' open' : ''}`} aria-hidden="true">
+              <ChevronDown size={16} strokeWidth={2} />
+            </span>
+          </button>
+          {isOpen && (
+            <div className="crow-subs">
+              {subs.map((sub) => (
+                <div
+                  key={sub.id || 'none'}
+                  className="crow sub"
+                  role="group"
+                  aria-label={`${sub.name}: ${masked ? t('home.amountHidden') : formatAmount(sub.amount, base)}, ${sub.percentage}%`}
+                >
+                  <span className="bub" style={{ '--c': item.categoryColor } as React.CSSProperties} aria-hidden="true">
+                    {sub.icon}
+                  </span>
+                  <span className="crow-main">
+                    <span className="crow-top">
+                      <span className="crow-name">{sub.name}</span>
+                      <span className={`amt${masked ? ' masked' : ''}`}>{money(sub.amount)}</span>
+                    </span>
+                    <span className="crow-bot">
+                      <span className="hbar">
+                        <span style={{ width: `${item.amount ? Math.round((sub.amount / item.amount) * 1000) / 10 : 0}%` }} />
+                      </span>
+                      <span className="crow-pct">{sub.percentage}%</span>
+                    </span>
+                  </span>
+                </div>
+              ))}
+              <button type="button" className="btn ghost sm self-start ml-[44px]" onClick={() => openInHistory(item.categoryId)}>
+                {t('stats.showEntries')}
+                <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </React.Fragment>
+      )
+    }
+
     return known ? (
       <button key={item.categoryId} type="button" className="crow" aria-label={label} onClick={() => openInHistory(item.categoryId)}>
         {content}

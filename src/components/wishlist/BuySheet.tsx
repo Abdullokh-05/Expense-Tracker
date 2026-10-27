@@ -34,7 +34,7 @@ export const BuySheet: React.FC<BuySheetProps> = ({ item, onClose }) => {
   const convert = useConverter()
 
   const accounts = allAccounts.filter((a) => !a.isArchived)
-  const expenseCategories = categories.filter((c) => getCategoryKind(c) === 'expense' && !c.isArchived)
+  const expenseCategories = categories.filter((c) => !c.parentId && getCategoryKind(c) === 'expense' && !c.isArchived)
 
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')

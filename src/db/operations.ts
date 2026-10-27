@@ -67,6 +67,73 @@ export async function archiveCategory(id: string): Promise<void> {
   await updateCategory(id, { isArchived: true })
 }
 
+// Deletes a subcategory. Its entries already belong to the parent (categoryId), so they only
+// lose the subcategory. All or nothing. Returns how many entries were moved.
+export async function deleteSubcategory(userId: string, subcategoryId: string): Promise<number> {
+  const now = nowISO()
+  return db.transaction('rw', db.transactions, db.categories, db.syncQueue, async () => {
+    const entries = await db.transactions.where('userId').equals(userId).filter((t) => t.subcategoryId === subcategoryId).toArray()
+    for (const txn of entries) {
+      const patch = { subcategoryId: null, updatedAt: now, synced: false }
+      await db.transactions.update(txn.id, patch)
+      await addToSyncQueue('transactions', 'update', txn.id, { ...fromStored('transactions', txn), ...patch })
+    }
+    await db.categories.delete(subcategoryId)
+    await addToSyncQueue('categories', 'delete', subcategoryId, { id: subcategoryId })
+    return entries.length
+  })
+}
+
+// Deletes a category with its subcategories and limit. Nothing is lost: its entries, and the
+// recurring payments and templates that use it, move to `targetId` ("Other"). All or nothing.
+// Returns how many entries were moved.
+export async function deleteCategoryMovingEntries(userId: string, categoryId: string, targetId: string): Promise<number> {
+  if (categoryId === targetId) throw new Error('A category cannot take its own entries')
+  const now = nowISO()
+  const tables = [db.transactions, db.recurringTransactions, db.templates, db.budgets, db.categories, db.syncQueue]
+  return db.transaction('rw', tables, async () => {
+    const children = await db.categories.where('userId').equals(userId).filter((c) => c.parentId === categoryId).toArray()
+    const childIds = new Set(children.map((c) => c.id))
+
+    const entries = await db.transactions
+      .where('userId')
+      .equals(userId)
+      .filter((t) => t.categoryId === categoryId || (t.subcategoryId != null && childIds.has(t.subcategoryId)))
+      .toArray()
+    for (const txn of entries) {
+      const patch = { categoryId: targetId, subcategoryId: null, updatedAt: now, synced: false }
+      await db.transactions.update(txn.id, patch)
+      await addToSyncQueue('transactions', 'update', txn.id, { ...fromStored('transactions', txn), ...patch })
+    }
+
+    const recurring = await db.recurringTransactions.where('userId').equals(userId).filter((r) => r.categoryId === categoryId).toArray()
+    for (const rt of recurring) {
+      const patch = { categoryId: targetId, updatedAt: now, synced: false }
+      await db.recurringTransactions.update(rt.id, patch)
+      await addToSyncQueue('recurring_transactions', 'update', rt.id, { ...fromStored('recurringTransactions', rt), ...patch })
+    }
+
+    const templates = await db.templates.where('userId').equals(userId).filter((tpl) => tpl.categoryId === categoryId).toArray()
+    for (const template of templates) {
+      const patch = { categoryId: targetId, updatedAt: now, synced: false }
+      await db.templates.update(template.id, patch)
+      await addToSyncQueue('templates', 'update', template.id, { ...fromStored('templates', template), ...patch })
+    }
+
+    const budgets = await db.budgets.where('userId').equals(userId).filter((b) => b.categoryId === categoryId).toArray()
+    for (const budget of budgets) {
+      await db.budgets.delete(budget.id)
+      await addToSyncQueue('budgets', 'delete', budget.id, { id: budget.id })
+    }
+
+    for (const id of [...childIds, categoryId]) {
+      await db.categories.delete(id)
+      await addToSyncQueue('categories', 'delete', id, { id })
+    }
+    return entries.length
+  })
+}
+
 export async function seedDefaultCategories(userId: string): Promise<void> {
   const existing = await db.categories.where('userId').equals(userId).count()
   if (existing > 0) return

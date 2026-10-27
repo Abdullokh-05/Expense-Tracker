@@ -620,7 +620,11 @@
     "limitOf": "of {{limit}}",
     "overBy": "Over by {{amount}}",
     "used": "{{percent}}% used · {{left}} left",
-    "noLimits": "Give a category a monthly limit to see how close you are."
+    "noLimits": "Give a category a monthly limit to see how close you are.",
+    "noSub": "No subcategory",
+    "showSubs": "Show subcategories",
+    "hideSubs": "Hide subcategories",
+    "showEntries": "Show entries"
   },
   "sets": {
     "signedInAs": "Synced as {{email}}",
@@ -678,7 +682,27 @@
     "overLine": "This month: {{spent}} spent, over by {{over}}.",
     "leftLine": "This month: {{spent}} spent, {{left}} left.",
     "archive": "Archive category",
-    "restore": "Restore category"
+    "restore": "Restore category",
+    "subsTitle": "Subcategories",
+    "addSub": "Add subcategory",
+    "subsHint": "Split this category further, e.g. Car → Fuel, Carwash, Accessories.",
+    "newSubTitle": "New subcategory",
+    "editSubTitle": "Edit subcategory",
+    "subOf": "Subcategory of {{parent}}",
+    "editSub": "Edit {{name}}",
+    "deleteSub": "Delete {{name}}",
+    "deleteSubButton": "Delete subcategory",
+    "delete": "Delete category",
+    "deleteTitle": "Delete “{{name}}”?",
+    "deleteSubMove_one": "Its {{count}} entry stays in “{{parent}}”.",
+    "deleteSubMove_other": "Its {{count}} entries stay in “{{parent}}”.",
+    "deleteMove_one": "{{count}} entry will move to “{{other}}”.",
+    "deleteMove_other": "{{count}} entries will move to “{{other}}”.",
+    "deleteNoEntries": "It has no entries.",
+    "deleteAlso": "Its subcategories and limit are deleted with it.",
+    "deleteMoveConfirm": "Move to “{{other}}”",
+    "deleted": "Category deleted",
+    "subDeleted": "Subcategory deleted"
   },
   "catPage": {
     "typeGroup": "Category type",
@@ -687,7 +711,12 @@
     "limit": "Limit {{amount}} {{currency}} a month",
     "move": "Move {{name}}, {{position}} of {{count}}. Use the arrow keys.",
     "noteOut": "This is the order on the add screen; the first 7 show without scrolling. Hold the handle and drag to move one. Tap a category to change its name, icon, colour or limit.",
-    "noteIn": "This is the order on the add screen when you add income. Hold the handle and drag to move one."
+    "noteIn": "This is the order on the add screen when you add income. Hold the handle and drag to move one.",
+    "subsOf": "Subcategories of {{name}}",
+    "showSubs_one": "Show {{count}} subcategory of {{name}}",
+    "showSubs_other": "Show {{count}} subcategories of {{name}}",
+    "hideSubs_one": "Hide {{count}} subcategory of {{name}}",
+    "hideSubs_other": "Hide {{count}} subcategories of {{name}}"
   },
   "add": {
     "newEntry": "New entry",

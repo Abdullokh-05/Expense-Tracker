@@ -18,6 +18,27 @@
   .drag:hover { background: var(--fill); opacity: 1; }
   .cat-row.lifted .drag { cursor: grabbing; opacity: 1; }
 
+  /* a category and its open subcategories move as one block */
+  .cat-block { background: var(--surface); position: relative; transition: transform 160ms ease, box-shadow 160ms ease; }
+  .cat-block.lifted { z-index: 2; transition: none; box-shadow: var(--sh-2), 0 0 0 1px var(--line-2); border-radius: 12px; }
+  .cat-block > .cat-row { background: transparent; box-shadow: none; border-radius: 0; min-height: 52px; }
+  /* how many subcategories, and the arrow that shows them */
+  .cat-expand { display: inline-flex; align-items: center; gap: 4px; min-width: 44px; height: 44px; padding: 0 8px; justify-content: center; border-radius: 999px; color: var(--ink-2); font-size: 15px; font-weight: 500; flex: none; position: relative; }
+  .cat-expand:hover { background: var(--fill); }
+  .cat-expand svg { transition: transform var(--ease); }
+  .cat-expand.open svg { transform: rotate(180deg); }
+  /* subcategories sit under the parent's name */
+  .cat-subs { display: flex; flex-direction: column; }
+  .cat-subs > .cat-row { border-top: 1px solid var(--line); padding-left: 60px; background: var(--surface); border-radius: 0; box-shadow: none; }
+  .cat-subs > .cat-row.lifted { z-index: 3; box-shadow: var(--sh-2), 0 0 0 1px var(--line-2); border-radius: 12px; }
+  .cat-subs.sorting > .cat-row:not(.lifted) { transition: transform 160ms ease; }
+  .cat-row.sub .bub { width: 28px; height: 28px; font-size: 15px; border-radius: 8px; }
+  .cat-row.sub .cat-open { min-height: 48px; }
+  /* subcategories in the edit pop-up */
+  .sub-row { gap: 8px; padding-right: 4px; }
+  .sub-row .bub { width: 32px; height: 32px; font-size: 17px; border-radius: 9px; flex: none; }
+  @media (prefers-reduced-motion: reduce) { .cat-expand svg { transition: none; } }
+
   /* emoji picker: one scrolling row that fades at the edges, or every icon wrapped */
   .emo-pick { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 -4px; }
   .emo-pick.one {

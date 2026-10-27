@@ -271,7 +271,7 @@ export const SettingsPage: React.FC = () => {
   const name = settings.displayName?.trim() ?? ''
   const active = activeAccounts(accounts)
   const defaultAccount = active.find((a) => a.isDefault)
-  const categoryCount = categories.filter((c) => !c.isArchived && getCategoryKind(c) === 'expense').length
+  const categoryCount = categories.filter((c) => !c.parentId && !c.isArchived && getCategoryKind(c) === 'expense').length
   const foreign = active.find((a) => a.currency !== base)?.currency
   const rate = foreign ? findCustomRate(settings.customRates, foreign, base)?.rate ?? rateBetween(liveRates, foreign, base) : null
   const backupWhen = settings.lastBackupAt

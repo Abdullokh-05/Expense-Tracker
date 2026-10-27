@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next'
 import type { Category, CategorySpending, DateRange, Transaction, TransactionType } from '@/types'
-import { getCategoryName } from '@/lib/categories'
+import { getCategoryName, rootCategoryId } from '@/lib/categories'
 import { addDays, formatMonthName, formatWeekdayShort, parseDateString, roundMoney } from '@/lib/utils'
 
 const UNCATEGORIZED_ID = 'uncategorized'
@@ -34,8 +34,10 @@ export function getCategorySpending(
 
   for (const txn of transactions) {
     if (txn.type !== type) continue
-    const known = txn.categoryId && categories.some((c) => c.id === txn.categoryId)
-    const key = known ? txn.categoryId! : UNCATEGORIZED_ID
+    // An entry counts under its top-level category (its subcategory is a split inside it)
+    const categoryId = rootCategoryId(categories, txn.categoryId)
+    const known = categoryId && categories.some((c) => c.id === categoryId)
+    const key = known ? categoryId! : UNCATEGORIZED_ID
     const entry = totals.get(key) ?? { amount: 0, count: 0 }
     entry.amount = roundMoney(entry.amount + txn.amountInBaseCurrency)
     entry.count += 1
@@ -51,6 +53,56 @@ export function getCategorySpending(
         categoryName: getCategoryName(category, t),
         categoryIcon: category?.icon ?? '📦',
         categoryColor: category?.color ?? UNCATEGORIZED_COLOR,
+        amount,
+        percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
+        transactionCount: count,
+      }
+    })
+    .sort((a, b) => b.amount - a.amount)
+}
+
+export interface SubcategorySpending {
+  // The subcategory's id, or '' for entries in the category without one
+  id: string
+  name: string
+  icon: string
+  amount: number
+  // Share of the category's total
+  percentage: number
+  transactionCount: number
+}
+
+// One category's expenses (or income) split by subcategory, biggest first. Entries without a
+// (known) subcategory form their own row, so the rows add up to the category's total.
+export function getSubcategorySpending(
+  transactions: Transaction[],
+  categories: Category[],
+  t: TFunction,
+  parentId: string,
+  type: 'expense' | 'income' = 'expense'
+): SubcategorySpending[] {
+  const parent = categories.find((c) => c.id === parentId)
+  const subs = new Map(categories.filter((c) => c.parentId === parentId).map((c) => [c.id, c]))
+  const totals = new Map<string, { amount: number; count: number }>()
+  let total = 0
+
+  for (const txn of transactions) {
+    if (txn.type !== type || rootCategoryId(categories, txn.categoryId) !== parentId) continue
+    const key = txn.subcategoryId && subs.has(txn.subcategoryId) ? txn.subcategoryId : ''
+    const entry = totals.get(key) ?? { amount: 0, count: 0 }
+    entry.amount = roundMoney(entry.amount + txn.amountInBaseCurrency)
+    entry.count += 1
+    totals.set(key, entry)
+    total = roundMoney(total + txn.amountInBaseCurrency)
+  }
+
+  return [...totals.entries()]
+    .map(([id, { amount, count }]) => {
+      const sub = subs.get(id)
+      return {
+        id,
+        name: sub ? getCategoryName(sub, t) : t('stats.noSub'),
+        icon: sub?.icon ?? parent?.icon ?? '📦',
         amount,
         percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
         transactionCount: count,

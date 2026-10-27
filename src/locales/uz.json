@@ -620,7 +620,11 @@
     "limitOf": "{{limit}} dan",
     "overBy": "{{amount}} ga oshdi",
     "used": "{{percent}}% · {{left}} qoldi",
-    "noLimits": "Qancha qolganini ko'rish uchun kategoriyaga oylik limit qo'ying."
+    "noLimits": "Qancha qolganini ko'rish uchun kategoriyaga oylik limit qo'ying.",
+    "noSub": "Ichki toifasiz",
+    "showSubs": "Ichki toifalarni ko'rsatish",
+    "hideSubs": "Ichki toifalarni yashirish",
+    "showEntries": "Yozuvlarni ko'rsatish"
   },
   "sets": {
     "signedInAs": "Sinxronlangan: {{email}}",
@@ -678,7 +682,27 @@
     "overLine": "Bu oy: {{spent}} sarflandi, {{over}} ga oshdi.",
     "leftLine": "Bu oy: {{spent}} sarflandi, {{left}} qoldi.",
     "archive": "Kategoriyani arxivlash",
-    "restore": "Kategoriyani tiklash"
+    "restore": "Kategoriyani tiklash",
+    "subsTitle": "Ichki toifalar",
+    "addSub": "Ichki toifa qo'shish",
+    "subsHint": "Toifani batafsil bo'ling, masalan: Mashina → Benzin, Yuvish, Aksessuarlar.",
+    "newSubTitle": "Yangi ichki toifa",
+    "editSubTitle": "Ichki toifa",
+    "subOf": "«{{parent}}» ichidagi toifa",
+    "editSub": "{{name}}: o'zgartirish",
+    "deleteSub": "{{name}}: o'chirish",
+    "deleteSubButton": "Ichki toifani o'chirish",
+    "delete": "Toifani o'chirish",
+    "deleteTitle": "«{{name}}» o'chirilsinmi?",
+    "deleteSubMove_one": "{{count}} ta yozuvi «{{parent}}» da qoladi.",
+    "deleteSubMove_other": "{{count}} ta yozuvi «{{parent}}» da qoladi.",
+    "deleteMove_one": "{{count}} ta yozuv «{{other}}» ga o'tadi.",
+    "deleteMove_other": "{{count}} ta yozuv «{{other}}» ga o'tadi.",
+    "deleteNoEntries": "Unda yozuvlar yo'q.",
+    "deleteAlso": "Ichki toifalari va limiti ham o'chiriladi.",
+    "deleteMoveConfirm": "«{{other}}» ga o'tkazish",
+    "deleted": "Toifa o'chirildi",
+    "subDeleted": "Ichki toifa o'chirildi"
   },
   "catPage": {
     "typeGroup": "Kategoriya turi",
@@ -687,7 +711,12 @@
     "limit": "Oyiga {{amount}} {{currency}} limit",
     "move": "{{name}}ni ko'chirish, {{count}} tadan {{position}}. Strelkalardan foydalaning.",
     "noteOut": "Qo'shish ekranida kategoriyalar shu tartibda chiqadi; dastlabki 7 tasi aylantirmasdan ko'rinadi. Ko'chirish uchun tutqichdan torting. Nomi, belgisi, rangi yoki limitini o'zgartirish uchun kategoriyani bosing.",
-    "noteIn": "Kirim qo'shganda kategoriyalar shu tartibda chiqadi. Ko'chirish uchun tutqichdan torting."
+    "noteIn": "Kirim qo'shganda kategoriyalar shu tartibda chiqadi. Ko'chirish uchun tutqichdan torting.",
+    "subsOf": "{{name}}: ichki toifalar",
+    "showSubs_one": "{{name}}: {{count}} ta ichki toifani ko'rsatish",
+    "showSubs_other": "{{name}}: {{count}} ta ichki toifani ko'rsatish",
+    "hideSubs_one": "{{name}}: {{count}} ta ichki toifani yashirish",
+    "hideSubs_other": "{{name}}: {{count}} ta ichki toifani yashirish"
   },
   "add": {
     "newEntry": "Yangi yozuv",
