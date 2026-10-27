@@ -1,9 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ArrowRight,
-  ArrowUpDown,
   Bookmark,
   Calendar,
   Check,
@@ -25,16 +23,18 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { toast } from '@/components/ui/Toast'
 import { AccountIcon } from '@/components/accounts/AccountCard'
 import { CategoryEditPopUp } from '@/components/categories/CategoryEditPopUp'
+import { TransferCards } from '@/components/transactions/TransferCards'
 import { useAppStore } from '@/store/appStore'
 import { useCategoryStore } from '@/store/categoryStore'
 import { useTransactionStore } from '@/store/transactionStore'
 import { useRecurringStore } from '@/store/recurringStore'
 import { useAccountStore } from '@/store/accountStore'
 import { useTemplateStore } from '@/store/templateStore'
+import { useUiStore } from '@/store/uiStore'
 import { useConverter, useRatesStore } from '@/store/ratesStore'
 import { suggestCategory } from '@/db/operations'
 import { getCategoryKind, getCategoryName, subcategoriesOf } from '@/lib/categories'
-import { paymentMethodOf } from '@/lib/accounts'
+import { getAccountBalances, paymentMethodOf } from '@/lib/accounts'
 import { formatRateLine } from '@/lib/rates'
 import { useWideScreen } from '@/lib/useWideScreen'
 import {
@@ -118,6 +118,8 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const loadRates = useRatesStore((s) => s.loadRates)
   const convert = useConverter()
 
+  const transactions = useTransactionStore((s) => s.transactions)
+  const masked = useUiStore((s) => s.amountsHidden)
   const addTransaction = useTransactionStore((s) => s.addTransaction)
   const editTransaction = useTransactionStore((s) => s.editTransaction)
   const removeTransaction = useTransactionStore((s) => s.removeTransaction)
@@ -161,10 +163,12 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
   // An archived account or category stays selectable on the transaction that already uses it.
   // Accounts counted in the total come first, as on Home.
-  const usable = allAccounts.filter(
-    (a) => !a.isArchived || a.id === transaction?.accountId || a.id === transaction?.toAccountId
-  )
-  const accounts = [...usable.filter((a) => a.includeInTotal), ...usable.filter((a) => !a.includeInTotal)]
+  const accounts = useMemo(() => {
+    const usable = allAccounts.filter(
+      (a) => !a.isArchived || a.id === transaction?.accountId || a.id === transaction?.toAccountId
+    )
+    return [...usable.filter((a) => a.includeInTotal), ...usable.filter((a) => !a.includeInTotal)]
+  }, [allAccounts, transaction?.accountId, transaction?.toAccountId])
   const isTransfer = type === 'transfer'
   // In the order set in Settings › Categories
   const shownCategories = categories.filter(
@@ -224,6 +228,16 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
   const account = accounts.find((a) => a.id === accountId)
   const toAccount = accounts.find((a) => a.id === toAccountId)
+
+  // Every account's balance as it stands without this entry (an edited transfer would
+  // otherwise count twice in "after")
+  const balances = useMemo(
+    () =>
+      isTransfer
+        ? getAccountBalances(accounts, transactions.filter((txn) => txn.id !== transaction?.id), settings.baseCurrency, convert)
+        : {},
+    [isTransfer, accounts, transactions, transaction?.id, settings.baseCurrency, convert]
+  )
   const currency = account?.currency ?? settings.baseCurrency
   const base = settings.baseCurrency
 
@@ -762,26 +776,19 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   // Small chips for everything else; each opens only when tapped
   const extras = (
     <div className="extras" role="group" aria-label={t('add.details')}>
-      <button
-        type="button"
-        className={`xchip xchip-acct${panel === 'account' ? ' open' : ''}`}
-        aria-expanded={panel === 'account'}
-        aria-label={
-          isTransfer
-            ? `${t('transaction.fromAccount')}: ${account?.name ?? '—'}, ${t('transaction.toAccount')}: ${toAccount?.name ?? '—'}`
-            : `${t('transaction.account')}: ${account?.name ?? '—'}`
-        }
-        onClick={() => togglePanel('account')}
-      >
-        {account && <AccountIcon account={account} size={16} />}
-        <span className="xchip-text">{account?.name ?? '—'}</span>
-        {isTransfer && (
-          <>
-            <ArrowRight size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
-            <span className="xchip-text">{toAccount?.name ?? '—'}</span>
-          </>
-        )}
-      </button>
+      {/* A transfer picks its accounts on the cards above */}
+      {!isTransfer && (
+        <button
+          type="button"
+          className={`xchip xchip-acct${panel === 'account' ? ' open' : ''}`}
+          aria-expanded={panel === 'account'}
+          aria-label={`${t('transaction.account')}: ${account?.name ?? '—'}`}
+          onClick={() => togglePanel('account')}
+        >
+          {account && <AccountIcon account={account} size={16} />}
+          <span className="xchip-text">{account?.name ?? '—'}</span>
+        </button>
+      )}
       <button
         type="button"
         className={`xchip${date !== today ? ' on' : ''}${panel === 'date' ? ' open' : ''}`}
@@ -852,38 +859,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const done = <Button variant="ghost" onClick={() => setPanel(null)}>{t('common.done')}</Button>
 
   const panels: Record<Panel, React.ReactNode> = {
-    account: isTransfer ? (
-      <>
-        <div className="panel-head">
-          <span className="t-head">{t('transaction.fromAccount')}</span>
-          {done}
-        </div>
-        <div className="acc-wrap" role="group" aria-label={t('transaction.fromAccount')}>
-          {accountChips(accountId, pickFrom)}
-        </div>
-        <div className="panel-head">
-          <span className="t-head">{t('transaction.toAccount')}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={!toAccountId}
-            onClick={() => {
-              setAccountId(toAccountId)
-              setToAccountId(accountId)
-              setToAmount('')
-              setFocus('amount')
-            }}
-          >
-            <ArrowUpDown size={18} strokeWidth={1.75} aria-hidden="true" />
-            {t('add.swap')}
-          </Button>
-        </div>
-        <div className="acc-wrap" role="group" aria-label={t('transaction.toAccount')}>
-          {accountChips(toAccountId, setToAccountId, accountId)}
-        </div>
-        {accounts.length < 2 && <p className="t-sub">{t('add.secondAccount')}</p>}
-      </>
-    ) : (
+    account: (
       <>
         <div className="panel-head">
           <span className="t-head">{t('transaction.account')}</span>
@@ -1101,6 +1077,40 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       </>
     )
 
+  // In the TO card when the currencies differ: what arrives, typed or at today's rate
+  const receivedSlot = crossCurrency ? (
+    typed ? (
+      <span className="tcard-recv">
+        <span>{t('add.receives')}</span>
+        <input
+          inputMode="decimal"
+          value={toAmount}
+          placeholder={convertedToAmount === null ? '' : String(roundMoney(convertedToAmount))}
+          aria-label={t('add.received')}
+          onChange={(e) => setToAmount(cleanAmountInput(e.target.value))}
+        />
+      </span>
+    ) : (
+      <button
+        type="button"
+        className={`tcard-recv${focus === 'received' ? ' focus' : ''}`}
+        aria-label={`${t('add.received')}: ${receivedAmount === null ? '—' : formatAmount(receivedAmount, toAccount!.currency)}`}
+        aria-pressed={focus === 'received'}
+        onClick={() => setFocus(focus === 'received' ? 'amount' : 'received')}
+      >
+        <span>{t('add.receives')}</span>
+        <span className="num">
+          {toAmount
+            ? formatAmount(parseAmount(toAmount), toAccount!.currency)
+            : convertedToAmount === null
+              ? '—'
+              : formatAmount(convertedToAmount, toAccount!.currency)}
+        </span>
+        {focus === 'received' ? <span className="caret h-4" aria-hidden="true" /> : <Pencil size={12} strokeWidth={2} aria-hidden="true" />}
+      </button>
+    )
+  ) : undefined
+
   return (
     <>
       <BottomSheet
@@ -1118,39 +1128,11 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
             {amountRow(amount, setAmount, true)}
             {!symbol.before && <span className="cur">{symbol.symbol}</span>}
           </div>
+          {/* Between two currencies the rate line below says it all */}
           {conversion === null ? (
             <div className="entry-sub err">{t('transaction.rateUnavailable')}</div>
           ) : (
-            conversion && <div className="entry-sub">{conversion}</div>
-          )}
-          {/* A transfer between currencies: what arrives, typed or at today's rate */}
-          {crossCurrency && (
-            <div className="recv">
-              <span className="t-label shrink-0">{t('add.received')}</span>
-              {typed ? (
-                <span className="input recv-input">
-                  <input
-                    inputMode="decimal"
-                    value={toAmount}
-                    placeholder={convertedToAmount === null ? '' : String(roundMoney(convertedToAmount))}
-                    aria-label={t('add.received')}
-                    onChange={(e) => setToAmount(cleanAmountInput(e.target.value))}
-                  />
-                  <span className="suffix" aria-hidden="true">{toAccount!.currency}</span>
-                </span>
-              ) : (
-                <button type="button" className={`input recv-input justify-end${focus === 'received' ? ' focus' : ''}`} onClick={() => setFocus('received')}>
-                  <span className="amt text-[16px]" style={{ color: toAmount ? 'var(--ink)' : 'var(--ink-2)' }}>
-                    {toAmount
-                      ? formatAmount(parseAmount(toAmount), toAccount!.currency)
-                      : convertedToAmount === null
-                        ? '—'
-                        : formatAmount(convertedToAmount, toAccount!.currency)}
-                  </span>
-                  {focus === 'received' && <span className="caret h-5" aria-hidden="true" />}
-                </button>
-              )}
-            </div>
+            conversion && !crossCurrency && <div className="entry-sub">{conversion}</div>
           )}
           {crossCurrency && (
             <div className="entry-sub">
@@ -1164,7 +1146,31 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
           )}
         </div>
 
-        {!isTransfer && strip}
+        {isTransfer ? (
+          <TransferCards
+            accounts={accounts}
+            fromId={accountId}
+            toId={toAccountId}
+            onFromChange={pickFrom}
+            onToChange={(id) => {
+              setToAccountId(id)
+              setToAmount('')
+            }}
+            onSwap={() => {
+              setAccountId(toAccountId)
+              setToAccountId(accountId)
+              setToAmount('')
+              setFocus('amount')
+            }}
+            balances={balances}
+            amount={hasValidAmount ? parsedAmount : null}
+            received={hasValidAmount ? receivedAmount : null}
+            masked={masked}
+            receivedSlot={receivedSlot}
+          />
+        ) : (
+          strip
+        )}
         {extras}
 
         {noteShown && (

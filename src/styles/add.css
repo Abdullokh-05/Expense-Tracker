@@ -60,9 +60,74 @@
   .suggest { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-text); font-size: 15px; font-weight: 600; white-space: nowrap; flex: none; max-width: 50%; }
   .suggest > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 
-  /* a transfer between currencies: what arrives */
-  .recv { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px; }
-  .recv-input { flex: 0 1 200px; min-height: 40px; }
+  /* a transfer: FROM and TO as small dark account cards (Home's card, compact), each swiping
+     through the accounts, with a round Swap button over the gap between them */
+  .tpair { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 8px; flex: none; }
+  .tcards { overflow: hidden; border-radius: 16px; touch-action: pan-y; -webkit-user-select: none; user-select: none; outline: none; }
+  .tcards:focus-visible { box-shadow: 0 0 0 2px var(--accent-text); }
+  .tcards-track {
+    display: flex; gap: 8px;
+    transform: translateX(calc(var(--i, 0) * (-100% - 8px) + var(--drag, 0px)));
+    transition: transform 280ms cubic-bezier(.2,.8,.2,1);
+  }
+  .tcards.dragging .tcards-track { transition: none; }
+  .tcard {
+    --c: #3E8A64; flex: 0 0 100%; min-width: 0; height: 84px; border-radius: 16px; padding: 10px 14px 10px 12px;
+    display: flex; flex-direction: column; justify-content: space-between; color: #FFFFFF; position: relative; overflow: hidden;
+    background: radial-gradient(130% 120% at 0% 0%, color-mix(in srgb, var(--c) 40%, transparent) 0%, transparent 64%), #0E1311;
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 12px 24px -16px rgba(0,0,0,.8);
+    transition: opacity var(--ease), box-shadow var(--ease);
+  }
+  .dark .tcard { background: radial-gradient(130% 120% at 0% 0%, color-mix(in srgb, var(--c) 34%, transparent) 0%, transparent 64%), #0B0D0C; border-color: rgba(255,255,255,.10); }
+  /* the account already on the other side, seen only in passing while swiping */
+  .tcard.taken { opacity: .4; }
+  .tcard.short { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--hero-alert) 75%, transparent), 0 12px 24px -16px rgba(0,0,0,.8); }
+  .tcard.empty { justify-content: center; gap: 4px; background: #0E1311; }
+  .tcard-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .tcard .bcard-ico { width: 30px; height: 30px; border-radius: 9px; }
+  .tcard-name { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  .tcard-title { font-size: 15px; line-height: 1.25; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tcard-kind { font-size: 12px; line-height: 1.3; color: rgba(255,255,255,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tcard-bal { font-size: 16px; line-height: 1.2; font-weight: 600; font-variant-numeric: tabular-nums; flex: none; max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tcard-bot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; min-width: 0; }
+  .tcard-role { font-size: 11px; line-height: 1; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: rgba(255,255,255,.56); }
+  .tcard-after { font-size: 13px; font-weight: 500; color: rgba(255,255,255,.82); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .tcard-after.neg, .tcard-warn { color: var(--hero-alert); }
+  .tcard-warn { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  /* TO between currencies: what arrives, tap to type it */
+  .tcard-recv { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 8px; margin-left: -6px; border-radius: 8px; background: rgba(255,255,255,.10); color: #FFFFFF; font-size: 13px; font-weight: 600; white-space: nowrap; position: relative; min-width: 0; }
+  .tcard-recv::before { content: ''; position: absolute; inset: -8px -4px; }
+  .tcard-recv > span:first-child { color: rgba(255,255,255,.62); font-weight: 500; }
+  .tcard-recv.focus { box-shadow: inset 0 0 0 1.5px #FFFFFF; }
+  .tcard-recv input { width: 88px; min-width: 0; border: 0; background: none; outline: none; padding: 0; color: #FFFFFF; font: inherit; font-variant-numeric: tabular-nums; }
+  .tcard-recv input::placeholder { color: rgba(255,255,255,.5); }
+  .tcard-recv .caret { background: #FFFFFF; margin-left: 0; }
+  .tdots { display: flex; height: 14px; padding: 2px 4px 0; }
+  .tdot { width: 14px; height: 12px; display: grid; place-items: center; }
+  .tdot::before { content: ''; width: 5px; height: 5px; border-radius: 3px; background: var(--line-2); transition: width var(--ease), background-color var(--ease); }
+  .tdot.on::before { width: 12px; background: var(--ink-2); }
+  .tdot[disabled]::before { opacity: .35; }
+  /* centred over the gap: FROM's card is 84 tall, its dots 14, then the 10 px gap */
+  .tswap {
+    position: absolute; left: 50%; top: 80px; z-index: 2; width: 40px; height: 40px; margin-left: -20px; border-radius: 999px;
+    display: grid; place-items: center; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2), var(--sh-2);
+    transition: transform var(--ease), background-color var(--ease);
+  }
+  .tswap::before { content: ''; position: absolute; inset: -2px; border-radius: inherit; }
+  .tswap:hover { background: color-mix(in srgb, var(--fill) 60%, var(--surface)); }
+  .tswap:active { transform: scale(.94); }
+  .tswap svg { transition: transform 240ms cubic-bezier(.2,.8,.2,1); }
+  .tswap[disabled] { opacity: .5; }
+  /* Swap: the two cards slide past each other, then trade accounts */
+  .tpair.swapping .tside.from .tcards { animation: tswap-down 240ms cubic-bezier(.4,0,.2,1) forwards; }
+  .tpair.swapping .tside.to .tcards { animation: tswap-up 240ms cubic-bezier(.4,0,.2,1) forwards; }
+  .tpair.swapping .tswap svg { transform: rotate(180deg); }
+  @keyframes tswap-down { 50% { opacity: .7; } to { transform: translateY(108px); } }
+  @keyframes tswap-up { 50% { opacity: .7; } to { transform: translateY(-108px); } }
+  @media (prefers-reduced-motion: reduce) {
+    .tcards-track, .tswap svg { transition: none; }
+  }
 
   /* one row of categories that scrolls sideways and fades at the edge, so the cut reads as "more" */
   .cstrip {

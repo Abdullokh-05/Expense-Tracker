@@ -763,6 +763,8 @@
     "details": "Tafsilotlar",
     "keepAsTemplate": "Shablon sifatida ham saqlash",
     "templatesHint": "Bugungi kunga yozish uchun shablonni bosing.",
-    "noTemplates": "Hozircha shablonlar yo'q. Tez-tez qiladigan yozuvni saqlash uchun yoqing."
+    "noTemplates": "Hozircha shablonlar yo'q. Tez-tez qiladigan yozuvni saqlash uchun yoqing.",
+    "moreThanBalance": "Qoldiqdan ko'p",
+    "receives": "Tushadi"
   }
 }
