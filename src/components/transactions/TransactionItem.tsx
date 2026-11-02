@@ -118,7 +118,9 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   // "Card → Cash" for a transfer; otherwise the account, plus the category when the title is a note
   const details = isTransfer
     ? [accountName, toAccountName].filter(Boolean).join(' → ')
-    : [accountName, transaction.note ? categoryName : null].filter(Boolean).join(' · ')
+    : transaction.isPhantom
+      ? [t('phantom.paidByName', { name: transaction.paidBy ?? '?' }), transaction.note ? categoryName : null].filter(Boolean).join(' · ')
+      : [accountName, transaction.note ? categoryName : null].filter(Boolean).join(' · ')
 
   const amount = masked
     ? MASK
@@ -164,7 +166,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
       <button
         ref={rowRef}
         type="button"
-        className="tx"
+        className={`tx${transaction.isPhantom ? ' ghost' : ''}`}
         style={open ? { transform: `translateX(${-REVEAL}px)` } : undefined}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -182,6 +184,11 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
         <span className="tx-main">
           <span className="tx-title">
             <span>{title}</span>
+            {transaction.isPhantom && (
+              <span className="ghost-badge" role="img" aria-label={t('phantom.badge')}>
+                👻
+              </span>
+            )}
             {transaction.recurringTransactionId && (
               <Repeat size={16} strokeWidth={1.75} role="img" aria-label={t('transaction.recurring')} />
             )}

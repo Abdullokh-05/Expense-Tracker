@@ -77,6 +77,14 @@
   /* row icons: a plain glyph tile, an account's colour, a category's round icon */
   .fico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; color: var(--ink-2); background: var(--fill); font-size: 17px; font-weight: 700; }
   .fico.tone { background: var(--c, var(--fill)); color: #FFFFFF; }
+  .fico.ghost { font-size: 18px; font-weight: 400; }
+  /* who paid before: one tap fills the name */
+  .frow.payers { flex-wrap: wrap; gap: 8px; padding-top: 0; padding-bottom: 12px; padding-left: 60px; min-height: 0; }
+  .fgroup > .frow.payers::before { display: none; }
+  .pchip { min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 14px; font-weight: 500; white-space: nowrap; position: relative; transition: background-color var(--ease); }
+  .pchip::before { content: ''; position: absolute; inset: -6px 0; }
+  .pchip:hover { background: var(--fill-2); }
+  .pchip.on { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
   .cico { width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; flex: none; font-size: 17px; line-height: 1; background: var(--c, #8E8E93); }
   .cico.sm { width: 28px; height: 28px; font-size: 15px; }
   .cico.lg { width: 48px; height: 48px; font-size: 24px; }

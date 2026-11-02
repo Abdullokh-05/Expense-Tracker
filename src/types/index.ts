@@ -44,6 +44,12 @@ export interface Transaction {
   translationConfidence: number | null
   paymentMethod: PaymentMethod | null
   recurringTransactionId: string | null
+  // A phantom expense: something someone else paid for (a friend filled up my car). It shows
+  // what was consumed but never touches money: no account, no balance, no limit. Records made
+  // before phantoms existed have neither field and are ordinary.
+  isPhantom?: boolean
+  // Who paid for a phantom expense
+  paidBy?: string | null
   createdAt: string
   updatedAt: string
   // Local only fields
@@ -293,6 +299,8 @@ export interface CategorySpending {
   categoryIcon: string
   categoryColor: string
   amount: number
+  // The part of amount others paid for (phantom expenses), when they're counted
+  phantomAmount: number
   percentage: number
   transactionCount: number
 }

@@ -848,5 +848,18 @@
     "accountOnDayShort": "account on the day",
     "recordNeedsAccount": "Pick an account above for this. Without one it waits on Home on the day until you mark it paid.",
     "nameOrCategory": "Give it a name or a category"
+  },
+  "phantom": {
+    "toggle": "Paid by someone else",
+    "toggleSub": "Shows what you used; your money stays untouched",
+    "paidBy": "Paid by",
+    "namePlaceholder": "Name",
+    "recent": "Paid before",
+    "nameRequired": "Enter who paid",
+    "paidByName": "Paid by {{name}}",
+    "badge": "Paid by someone else",
+    "statsGroup": "Whose money",
+    "myMoney": "My money",
+    "withOthers": "All"
   }
 }

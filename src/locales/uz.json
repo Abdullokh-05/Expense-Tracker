@@ -848,5 +848,18 @@
     "accountOnDayShort": "hisob to‘lov kuni",
     "recordNeedsAccount": "Buning uchun yuqorida hisob tanlang. Hisobsiz to‘lov o‘sha kuni bosh sahifada to‘langan deb belgilaguningizcha kutadi.",
     "nameOrCategory": "Nom yoki kategoriya kiriting"
+  },
+  "phantom": {
+    "toggle": "Boshqa birov to‘lagan",
+    "toggleSub": "Nima ishlatganingiz ko‘rinadi; pulingiz o‘zgarmaydi",
+    "paidBy": "Kim to‘lagan",
+    "namePlaceholder": "Ism",
+    "recent": "Avval to‘laganlar",
+    "nameRequired": "Kim to‘laganini kiriting",
+    "paidByName": "To‘lagan: {{name}}",
+    "badge": "Boshqa birov to‘lagan",
+    "statsGroup": "Kimning puli",
+    "myMoney": "Mening pulim",
+    "withOthers": "Hammasi"
   }
 }

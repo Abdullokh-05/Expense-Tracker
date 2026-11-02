@@ -90,5 +90,5 @@ export function matchesSearch(
         : ''
   const account = accounts.find((a) => a.id === txn.accountId)?.name ?? ''
   const toAccount = accounts.find((a) => a.id === txn.toAccountId)?.name ?? ''
-  return [txn.note ?? '', kind, account, toAccount].some((text) => text.toLowerCase().includes(q))
+  return [txn.note ?? '', kind, account, toAccount, txn.paidBy ?? ''].some((text) => text.toLowerCase().includes(q))
 }

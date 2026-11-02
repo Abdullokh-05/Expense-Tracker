@@ -55,6 +55,7 @@ export function buildNotifications(
         (txn) =>
           txn.status === 'confirmed' &&
           txn.type === 'expense' &&
+          !txn.isPhantom &&
           txn.categoryId === budget.categoryId &&
           txn.date >= month.from &&
           txn.date <= month.to

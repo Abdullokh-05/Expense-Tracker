@@ -78,6 +78,11 @@
   .crow-bot { display: flex; align-items: center; gap: 8px; }
   .hbar { flex: 1; min-width: 0; height: 6px; }
   .hbar > span { display: block; height: 6px; border-radius: 0 3px 3px 0; background: var(--viz-mark); min-width: 2px; }
+  /* what others paid (phantom expenses) follows the user's own part, striped and lighter */
+  .hbar { display: flex; }
+  .hbar > span:has(+ .ph) { border-radius: 0; }
+  .hbar > span.ph { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--viz-mark) 55%, transparent) 0 3px, color-mix(in srgb, var(--viz-mark) 18%, transparent) 3px 6px); }
+  .hbar > span.ph:first-child { min-width: 2px; }
   /* a category with subcategories opens in place */
   .crow-chev { width: 20px; flex: none; display: grid; place-items: center; color: var(--ink-2); transition: transform var(--ease); }
   .crow-chev.open { transform: rotate(180deg); }

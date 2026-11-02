@@ -12,7 +12,7 @@ function accountDelta(
   baseCurrency: string,
   convert: Converter
 ): number {
-  if (txn.status !== 'confirmed') return 0
+  if (txn.status !== 'confirmed' || txn.isPhantom) return 0
 
   // A transaction is normally in its account's currency. Records made before accounts existed
   // may not be; those fall back to the base-currency value they were recorded at.

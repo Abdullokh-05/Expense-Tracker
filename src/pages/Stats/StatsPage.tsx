@@ -52,6 +52,18 @@ import type { HistoryFocus } from '@/components/home/HistorySection'
 type StatsKind = CategoryKind | 'all'
 // One bar per day of a month, or per month of a year
 type Unit = 'day' | 'month'
+// The user's own money only, or with what others paid for them (phantom expenses)
+type MoneyMode = 'mine' | 'all'
+
+const MONEY_MODE_KEY = 'xarajat-stats-money'
+// Storage can be unavailable (private mode); the switch then just starts on "My money"
+function readMoneyMode(): MoneyMode {
+  try {
+    return localStorage.getItem(MONEY_MODE_KEY) === 'all' ? 'all' : 'mine'
+  } catch {
+    return 'mine'
+  }
+}
 
 // Categories listed before the rest fold into "Other (n)"
 const TOP_CATEGORIES = 7
@@ -106,6 +118,16 @@ export const StatsPage: React.FC = () => {
   // Home's income and outcome tiles open this tab on their type and month
   const [kind, setKind] = useState<StatsKind>(() => (searchParams.get('type') === 'income' ? 'income' : 'expense'))
   const [unit, setUnit] = useState<Unit>('day')
+  const [moneyMode, setMoneyMode] = useState<MoneyMode>(readMoneyMode)
+  const withPhantoms = moneyMode === 'all'
+  const pickMoneyMode = (next: MoneyMode) => {
+    setMoneyMode(next)
+    try {
+      localStorage.setItem(MONEY_MODE_KEY, next)
+    } catch {
+      // Not remembered this time; nothing else depends on it
+    }
+  }
   // Months back in the day view, years back in the month view
   const [offset, setOffset] = useState(() => Math.min(0, Number(searchParams.get('m')) || 0))
   // The bar tapped: a day ("2026-10-14") or a month ("2026-10")
@@ -126,8 +148,8 @@ export const StatsPage: React.FC = () => {
   const isAll = kind === 'all'
   const today = todayDate()
   const range = useMemo(() => getDateRange(unit === 'day' ? 'month' : 'year', offset), [unit, offset])
-  const period = useMemo(() => confirmedInRange(transactions, range), [transactions, range])
-  const buckets = useMemo(() => getPeriodBuckets(transactions, range, unit), [transactions, range, unit])
+  const period = useMemo(() => confirmedInRange(transactions, range, withPhantoms), [transactions, range, withPhantoms])
+  const buckets = useMemo(() => getPeriodBuckets(transactions, range, unit, withPhantoms), [transactions, range, unit, withPhantoms])
   const selected = buckets.find((bucket) => bucket.key === selectedKey) ?? null
 
   // Everything below the chart looks at the picked day or month, or the whole period
@@ -181,8 +203,8 @@ export const StatsPage: React.FC = () => {
 
   // ── Compared with the month before (a month in progress against the same days of it) ──
   const previous = useMemo(
-    () => (unit === 'day' && !isAll ? sumByType(confirmedInRange(transactions, getComparisonRange('month', offset)), kind) : 0),
-    [transactions, offset, kind, unit, isAll]
+    () => (unit === 'day' && !isAll ? sumByType(confirmedInRange(transactions, getComparisonRange('month', offset), withPhantoms), kind) : 0),
+    [transactions, offset, kind, unit, isAll, withPhantoms]
   )
   const previousName = formatMonthInSentence(parseDateString(getDateRange('month', offset - 1).from), lang)
   const change = unit === 'day' && !isAll && previous > 0 && !masked ? Math.round((Math.abs(total - previous) / previous) * 100) : null
@@ -219,9 +241,11 @@ export const StatsPage: React.FC = () => {
   // ── Daily average and what was left over ──
   const days = daysBetween(range.from, isCurrent && today < range.to ? today : range.to) + 1
   const perDay = isAll ? outcome : total
+  // What was left over is about the user's own money: what others paid for doesn't eat into it
+  const saved = withPhantoms ? roundMoney(income - sumByType(period.filter((txn) => !txn.isPhantom), 'expense')) : net
   const savedSub =
     income > 0
-      ? t('stats.ofIncome', { percent: Math.round((Math.abs(net) / income) * 100) })
+      ? t('stats.ofIncome', { percent: Math.round((Math.abs(saved) / income) * 100) })
       : outcome > 0
         ? t('stats.noIncome')
         : t('stats.nothingYet')
@@ -234,7 +258,7 @@ export const StatsPage: React.FC = () => {
         .map((budget) => {
           const category = categories.find((c) => c.id === budget.categoryId)
           const spent = period
-            .filter((txn) => txn.type === 'expense' && txn.categoryId === budget.categoryId)
+            .filter((txn) => txn.type === 'expense' && !txn.isPhantom && txn.categoryId === budget.categoryId)
             .reduce((sum, txn) => roundMoney(sum + txn.amountInBaseCurrency), 0)
           return { category, limit: budget.monthlyLimit, spent, percent: Math.round((spent / budget.monthlyLimit) * 100) }
         })
@@ -292,7 +316,10 @@ export const StatsPage: React.FC = () => {
             </span>
             <span className="crow-bot">
               <span className="hbar">
-                <span style={{ width: `${biggest ? Math.round((item.amount / biggest) * 1000) / 10 : 0}%` }} />
+                <span style={{ width: `${biggest ? Math.round(((item.amount - item.phantomAmount) / biggest) * 1000) / 10 : 0}%` }} />
+                {item.phantomAmount > 0 && (
+                  <span className="ph" style={{ width: `${Math.round((item.phantomAmount / biggest) * 1000) / 10}%` }} />
+                )}
               </span>
               <span className="crow-pct">{item.percentage}%</span>
             </span>
@@ -458,7 +485,21 @@ export const StatsPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-4 w-full max-w-[640px] mx-auto">
-      <PageHeader title={t('nav.stats')} />
+      <PageHeader
+        title={t('nav.stats')}
+        action={
+          <SegmentedControl<MoneyMode>
+            label={t('phantom.statsGroup')}
+            fill={false}
+            value={moneyMode}
+            onChange={pickMoneyMode}
+            options={[
+              { value: 'mine', label: t('phantom.myMoney') },
+              { value: 'all', label: t('phantom.withOthers') },
+            ]}
+          />
+        }
+      />
 
       <div className="flex flex-col gap-2">
         <SegmentedControl<StatsKind>
@@ -640,8 +681,8 @@ export const StatsPage: React.FC = () => {
           <span className="t-cap">{t('stats.days', { count: days })}</span>
         </div>
         <div className="ktile">
-          <span className="t-cap">{net >= 0 ? t('stats.saved') : t('stats.overspent')}</span>
-          <span className={`ktile-val${masked ? ' masked' : ''}`}>{money(Math.abs(net))}</span>
+          <span className="t-cap">{saved >= 0 ? t('stats.saved') : t('stats.overspent')}</span>
+          <span className={`ktile-val${masked ? ' masked' : ''}`}>{money(Math.abs(saved))}</span>
           <span className="t-cap">{savedSub}</span>
         </div>
       </div>

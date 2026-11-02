@@ -162,7 +162,15 @@ async function send(item: SyncQueueItem, userId: string): Promise<string | null>
     const { error } = await supabase.from(item.table).delete().eq('id', item.recordId)
     return error ? error.message : null
   }
-  const { error } = await supabase.from(item.table).upsert(toRow(item.table, item.payload, userId))
+  const row = toRow(item.table, item.payload, userId)
+  const { error } = await supabase.from(item.table).upsert(row)
+  // A database without the phantom columns yet (supabase/migrations/…_phantom_expenses.sql):
+  // an ordinary entry goes up without them; a phantom one waits until they exist
+  if (error && /is_phantom|paid_by/.test(error.message) && !row.is_phantom) {
+    const { is_phantom: _phantom, paid_by: _paidBy, ...ordinary } = row
+    const retry = await supabase.from(item.table).upsert(ordinary)
+    return retry.error ? retry.error.message : null
+  }
   return error ? error.message : null
 }
 

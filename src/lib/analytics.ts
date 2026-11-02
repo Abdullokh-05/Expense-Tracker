@@ -6,10 +6,12 @@ import { addDays, formatMonthName, formatWeekdayShort, parseDateString, roundMon
 const UNCATEGORIZED_ID = 'uncategorized'
 const UNCATEGORIZED_COLOR = '#6b7280'
 
-// Confirmed transactions dated inside the range (both ends inclusive)
-export function confirmedInRange(transactions: Transaction[], range: DateRange): Transaction[] {
+// Confirmed transactions dated inside the range (both ends inclusive). Phantom expenses (paid
+// by someone else) aren't the user's money, so they're left out unless asked for.
+export function confirmedInRange(transactions: Transaction[], range: DateRange, withPhantoms = false): Transaction[] {
   return transactions.filter(
-    (txn) => txn.status === 'confirmed' && txn.date >= range.from && txn.date <= range.to
+    (txn) =>
+      txn.status === 'confirmed' && txn.date >= range.from && txn.date <= range.to && (withPhantoms || !txn.isPhantom)
   )
 }
 
@@ -29,7 +31,7 @@ export function getCategorySpending(
   t: TFunction,
   type: 'expense' | 'income' = 'expense'
 ): CategorySpending[] {
-  const totals = new Map<string, { amount: number; count: number }>()
+  const totals = new Map<string, { amount: number; phantom: number; count: number }>()
   let total = 0
 
   for (const txn of transactions) {
@@ -38,15 +40,16 @@ export function getCategorySpending(
     const categoryId = rootCategoryId(categories, txn.categoryId)
     const known = categoryId && categories.some((c) => c.id === categoryId)
     const key = known ? categoryId! : UNCATEGORIZED_ID
-    const entry = totals.get(key) ?? { amount: 0, count: 0 }
+    const entry = totals.get(key) ?? { amount: 0, phantom: 0, count: 0 }
     entry.amount = roundMoney(entry.amount + txn.amountInBaseCurrency)
+    if (txn.isPhantom) entry.phantom = roundMoney(entry.phantom + txn.amountInBaseCurrency)
     entry.count += 1
     totals.set(key, entry)
     total = roundMoney(total + txn.amountInBaseCurrency)
   }
 
   return [...totals.entries()]
-    .map(([categoryId, { amount, count }]) => {
+    .map(([categoryId, { amount, phantom, count }]) => {
       const category = categories.find((c) => c.id === categoryId)
       return {
         categoryId,
@@ -54,6 +57,7 @@ export function getCategorySpending(
         categoryIcon: category?.icon ?? '❔',
         categoryColor: category?.color ?? UNCATEGORIZED_COLOR,
         amount,
+        phantomAmount: phantom,
         percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
         transactionCount: count,
       }
@@ -74,7 +78,12 @@ export interface PeriodBucket {
 // Every day (or month) is there, empty ones too. Transfers between the user's own accounts are
 // neither, so they never count. Days are the entries' own calendar dates (Tashkent days, as
 // recorded), never UTC timestamps.
-export function getPeriodBuckets(transactions: Transaction[], range: DateRange, unit: 'day' | 'month'): PeriodBucket[] {
+export function getPeriodBuckets(
+  transactions: Transaction[],
+  range: DateRange,
+  unit: 'day' | 'month',
+  withPhantoms = false
+): PeriodBucket[] {
   const buckets: PeriodBucket[] = []
   if (unit === 'day') {
     for (let day = range.from; day <= range.to; day = addDays(day, 1)) {
@@ -89,7 +98,7 @@ export function getPeriodBuckets(transactions: Transaction[], range: DateRange, 
     }
   }
   const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]))
-  for (const txn of confirmedInRange(transactions, range)) {
+  for (const txn of confirmedInRange(transactions, range, withPhantoms)) {
     if (txn.type === 'transfer') continue
     const bucket = byKey.get(unit === 'day' ? txn.date : txn.date.slice(0, 7))
     if (!bucket) continue

@@ -271,6 +271,14 @@
   }
 }
 
+/* a phantom expense (paid by someone else): the icon and amount fade, a dashed ring marks
+   the icon, and a small ghost sits by the name */
+@layer components {
+  .tx.ghost .bub { opacity: .5; box-shadow: 0 0 0 1.5px var(--ink-2) inset; outline: 1.5px dashed var(--line-2); outline-offset: 2px; }
+  .tx.ghost .amt { color: var(--ink-2); font-weight: 500; opacity: .75; }
+  .ghost-badge { flex: none; font-size: 12px; line-height: 1; padding: 3px 5px; border-radius: 999px; background: var(--fill); }
+}
+
 /* something waiting for the user: amber, so it reads as "to do", not as an error */
 @layer components {
   .fc.attn .fc-ico { background: var(--warn-soft); color: var(--warn); }

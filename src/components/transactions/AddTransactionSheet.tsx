@@ -14,6 +14,7 @@ import {
   Repeat,
   StickyNote,
   Trash2,
+  UserRound,
   X,
 } from 'lucide-react'
 import type { Category, CategoryKind, RecurringFrequency, Transaction, TransactionTemplate, TransactionType } from '@/types'
@@ -75,6 +76,27 @@ type View = 'form' | 'category' | 'account' | 'date' | 'repeat' | 'templates'
 type Field = 'amount' | 'received'
 // The category form opened over the sheet: a new category, a new subcategory or an edit
 type CategoryForm = { category?: Category; parent?: Category }
+
+// Names of people who paid for phantom expenses, newest first (storage can be unavailable)
+const PAYERS_KEY = 'xarajat-payers'
+function readPayers(): string[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(PAYERS_KEY) ?? '[]')
+    return Array.isArray(list) ? list.filter((name) => typeof name === 'string') : []
+  } catch {
+    return []
+  }
+}
+function rememberPayer(name: string) {
+  const clean = name.trim()
+  if (!clean) return
+  try {
+    const rest = readPayers().filter((other) => other.toLowerCase() !== clean.toLowerCase())
+    localStorage.setItem(PAYERS_KEY, JSON.stringify([clean, ...rest].slice(0, 20)))
+  } catch {
+    // Not remembered this time; the entries still suggest it
+  }
+}
 
 // NaN while nothing is typed
 const parseAmount = (text: string) => parseMoneyInput(text, { allowNegative: false }) ?? NaN
@@ -182,6 +204,10 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly')
   const [autoCreate, setAutoCreate] = useState(true)
 
+  // A phantom expense: someone else paid, so no account and no effect on money
+  const [isPhantom, setIsPhantom] = useState(false)
+  const [paidBy, setPaidBy] = useState('')
+
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   // While on, tapping a template removes it instead of using it
   const [managingTemplates, setManagingTemplates] = useState(false)
@@ -242,6 +268,8 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setFrequency('monthly')
       setAutoCreate(true)
       setSaveAsTemplate(false)
+      setIsPhantom(Boolean(transaction?.isPhantom))
+      setPaidBy(transaction?.paidBy ?? '')
       setManagingTemplates(false)
       setSuggestedCat(null)
       // Foreign-currency accounts need rates; fetch them if this session hasn't yet
@@ -275,7 +303,10 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     () => getAccountBalances(accounts, transactions.filter((txn) => txn.id !== transaction?.id), settings.baseCurrency, convert),
     [accounts, transactions, transaction?.id, settings.baseCurrency, convert]
   )
-  const currency = account?.currency ?? settings.baseCurrency
+  // Only an expense can be paid by someone else
+  const phantom = isPhantom && type === 'expense'
+  // A phantom has no account, so it's in the main currency
+  const currency = (!phantom && account?.currency) || settings.baseCurrency
   const base = settings.baseCurrency
 
   // Rate from the account's currency to the base currency. Saving needs a real one: recording
@@ -316,6 +347,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setSelectedSubcategoryId('')
     }
     setSuggestedCat(null)
+    if (next !== 'expense') setIsPhantom(false)
     if (next === 'transfer') {
       setIsRecurring(false)
       // The account picked for spending may also be the transfer's destination: move the destination
@@ -369,12 +401,16 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setKeypadOn(true)
       return
     }
-    if (!account) {
+    if (phantom && !paidBy.trim()) {
+      toast.error(t('phantom.nameRequired'))
+      return
+    }
+    if (!phantom && !account) {
       toast.error(t('transaction.accountRequired'))
       return
     }
     if (isTransfer) {
-      if (!toAccount || toAccount.id === account.id) {
+      if (!toAccount || toAccount.id === account?.id) {
         toast.error(t('transaction.transferAccountsRequired'))
         return
       }
@@ -399,19 +435,23 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         exchangeRate: rate,
         categoryId: isTransfer ? null : finalCategoryId || null,
         subcategoryId: isTransfer ? null : finalSubcategoryId || null,
-        accountId: account.id,
+        accountId: phantom ? null : account!.id,
         toAccountId: isTransfer ? toAccount!.id : null,
         toAmount: isTransfer ? receivedAmount : null,
         date,
         note: note.trim() || null,
         noteOriginal: note.trim() || null,
-        paymentMethod: paymentMethodOf(account),
+        paymentMethod: phantom ? null : paymentMethodOf(account!),
+        isPhantom: phantom,
+        paidBy: phantom ? paidBy.trim() : null,
       }
-      const what = isTransfer ? `${account.name} → ${toAccount!.name}` : categoryLabel(finalCategoryId, finalSubcategoryId)
+      const what = isTransfer
+        ? `${account!.name} → ${toAccount!.name}`
+        : `${categoryLabel(finalCategoryId, finalSubcategoryId)}${phantom ? ` · 👻 ${paidBy.trim()}` : ''}`
 
       // Repeat turned on: this entry starts a planned payment, the next one a period later
       const startPlanned = async () => {
-        if (!isRecurring || type === 'transfer') return null
+        if (!isRecurring || type === 'transfer' || phantom) return null
         const rt = await addRecurringTransaction({
           userId: settings.userId,
           type,
@@ -419,7 +459,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
           currency,
           categoryId: finalCategoryId || null,
           subcategoryId: finalSubcategoryId || null,
-          accountId: account.id,
+          accountId: account!.id,
           note: note.trim() || null,
           frequency,
           nextRunDate: advanceByFrequency(date, frequency),
@@ -431,6 +471,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       }
 
       if (transaction) {
+        if (phantom) rememberPayer(paidBy)
         // An entry whose planned payment was deleted can start a new one
         const recurringTransactionId = planned?.id ?? (await startPlanned())
         await editTransaction(transaction.id, { ...fields, recurringTransactionId, ...(paying ? { status: 'confirmed' as const } : {}) })
@@ -446,8 +487,9 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
           translationConfidence: null,
           recurringTransactionId,
         })
-        localStorage.setItem(LAST_ACCOUNT_KEY, account.id)
-        if (saveAsTemplate && type !== 'transfer') await saveTemplate(finalCategoryId, finalSubcategoryId)
+        if (!phantom) localStorage.setItem(LAST_ACCOUNT_KEY, account!.id)
+        else rememberPayer(paidBy)
+        if (saveAsTemplate && type !== 'transfer' && !phantom) await saveTemplate(finalCategoryId, finalSubcategoryId)
         // Undo takes back the entry and the repeat it started
         announce({ amount: parsedAmount, currency, type, what }, () => {
           removeTransaction(created.id)
@@ -567,6 +609,29 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       onClose()
     } catch {
       toast.error(t('common.error'))
+    }
+  }
+
+  // People who paid before, the most recent first, for one-tap picking: from the entries, and
+  // from a list kept on this device so a name stays even after its entry is changed or deleted
+  const payers = useMemo(() => {
+    const seen = new Map<string, string>()
+    const remember = (name: string | null | undefined) => {
+      const clean = name?.trim()
+      if (clean && !seen.has(clean.toLowerCase())) seen.set(clean.toLowerCase(), clean)
+    }
+    for (const txn of transactions) if (txn.isPhantom) remember(txn.paidBy)
+    readPayers().forEach(remember)
+    return [...seen.values()].slice(0, 8)
+  }, [transactions, isOpen])
+
+  const togglePhantom = (on: boolean) => {
+    setIsPhantom(on)
+    if (on) setIsRecurring(false)
+    // Back to an ordinary expense: it needs an account again
+    else if (!accountId) {
+      const active = allAccounts.filter((a) => !a.isArchived)
+      setAccountId(active.find((a) => a.isDefault)?.id ?? active[0]?.id ?? '')
     }
   }
 
@@ -906,7 +971,51 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       <section className="fsec">
         <h3 className="t-over fsec-title">{t('add.general')}</h3>
         <div className="fgroup">
-          {!isTransfer && (
+          {type === 'expense' && (
+            <div className="frow">
+              <span className="fico ghost" aria-hidden="true">👻</span>
+              <span className="frow-main">
+                <span className="frow-title">{t('phantom.toggle')}</span>
+                {phantom && <span className="frow-sub">{t('phantom.toggleSub')}</span>}
+              </span>
+              <Switch checked={phantom} onChange={togglePhantom} label={t('phantom.toggle')} />
+            </div>
+          )}
+          {phantom && (
+            <>
+              <label className="frow">
+                <span className="fico" aria-hidden="true">
+                  <UserRound size={18} strokeWidth={1.75} />
+                </span>
+                <span className="frow-title">{t('phantom.paidBy')}</span>
+                <input
+                  className="frow-input"
+                  value={paidBy}
+                  maxLength={40}
+                  placeholder={t('phantom.namePlaceholder')}
+                  aria-label={t('phantom.paidBy')}
+                  onFocus={() => setKeypadOn(false)}
+                  onChange={(e) => setPaidBy(e.target.value)}
+                />
+              </label>
+              {payers.length > 0 && (
+                <div className="frow payers" role="group" aria-label={t('phantom.recent')}>
+                  {payers.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      className={`pchip${paidBy.trim().toLowerCase() === name.toLowerCase() ? ' on' : ''}`}
+                      aria-pressed={paidBy.trim().toLowerCase() === name.toLowerCase()}
+                      onClick={() => setPaidBy(name)}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+          {!isTransfer && !phantom && (
             <FormRow
               icon={
                 <span className="fico tone" style={{ '--c': account ? accountColor(account) : undefined } as React.CSSProperties}>
@@ -944,7 +1053,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
             value={dateLabel}
             onClick={() => openView('date')}
           />
-          {!isTransfer && planned ? (
+          {!isTransfer && !phantom && planned ? (
             <FormRow
               icon={
                 <span className="fico">
@@ -959,7 +1068,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
               }}
             />
           ) : (
-            !isTransfer && (
+            !isTransfer && !phantom && (
               <FormRow
                 icon={
                   <span className="fico">
@@ -1000,7 +1109,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
               <span className="frow-title">{t('add.useSuggestion', { name: getCategoryName(suggestedCat, t) })}</span>
             </button>
           )}
-          {!isTransfer && !isEditing && (
+          {!isTransfer && !isEditing && !phantom && (
             <div className="frow">
               <span className="fico">
                 <Bookmark size={18} strokeWidth={1.75} />
@@ -1009,7 +1118,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
               <Switch checked={saveAsTemplate} onChange={setSaveAsTemplate} label={t('add.keepAsTemplate')} />
             </div>
           )}
-          {!isTransfer && isEditing && (
+          {!isTransfer && isEditing && !phantom && (
             <button type="button" className="frow" onClick={handleSaveTemplateFromEdit}>
               <span className="fico">
                 <Bookmark size={18} strokeWidth={1.75} />

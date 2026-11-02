@@ -41,7 +41,7 @@ export const HistoryList: React.FC<HistoryListProps> = ({
     const totals = new Map<string, number>()
     for (const txn of totalsFrom) {
       if (txn.type === 'transfer') continue
-      const signed = txn.type === 'income' ? txn.amountInBaseCurrency : -txn.amountInBaseCurrency
+      const signed = txn.isPhantom ? 0 : txn.type === 'income' ? txn.amountInBaseCurrency : -txn.amountInBaseCurrency
       totals.set(txn.date, (totals.get(txn.date) ?? 0) + signed)
     }
     return totals
