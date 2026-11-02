@@ -623,7 +623,7 @@ export const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     for (const txn of transactions) if (txn.isPhantom) remember(txn.paidBy)
     readPayers().forEach(remember)
     return [...seen.values()].slice(0, 8)
-  }, [transactions, isOpen])
+  }, [transactions, isOpen]) // oxlint-disable-line react-hooks/exhaustive-deps -- the kept names are re-read each time the sheet opens
 
   const togglePhantom = (on: boolean) => {
     setIsPhantom(on)
